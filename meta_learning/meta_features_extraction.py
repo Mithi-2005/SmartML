@@ -12,6 +12,12 @@ from sklearn.feature_selection import mutual_info_classif
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import entropy
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+
+
+
+
 def mean_feature_entropy_auto(numeric_df):
     if numeric_df.shape[1] == 0:
         return np.nan
@@ -31,10 +37,10 @@ def mean_feature_entropy_auto(numeric_df):
 
 def meta_features_extract_reg(dataset: str, target_col: str):
     try:
-        # === Load existing meta-features file ===
+       
         dest = pd.read_csv('meta_regression/meta_features_regression.csv')
     except FileNotFoundError:
-        # Create a new file if it doesn't exist
+       
         dest = pd.DataFrame()
 
     try:
@@ -289,9 +295,218 @@ def meta_features_extract_class(dataset_path,target_col_index=None):
     return meta
 
 
+def meta_features_extract_clust(dataset_path,sample_limit=10000,k_min=2,k_max=10,random_state=0):
+    
+    meta_csv='meta_clustering/meta_features_clustering.csv'
+
+    if meta_csv is None:
+        meta_csv = 'meta_clustering/meta_features_clustering.csv'
+    if os.path.exists(meta_csv):
+        try:
+            meta = pd.read_csv(meta_csv)
+        except Exception:
+            meta = pd.DataFrame()
+    else:
+        os.makedirs(os.path.dirname(meta_csv), exist_ok=True)
+        meta = pd.DataFrame()
+
+    
+    try:
+        df = pd.read_csv(dataset_path)
+    except Exception as e:
+        print(f"❌ Error reading dataset: {e}")
+        return
+
+    # --- Basic sizes ---
+    n_instances = df.shape[0]
+    n_features = df.shape[1]
+
+    # --- Numeric features only for clustering/meta ---
+    # include ints and floats
+    numeric_df = df.select_dtypes(include=['int64', 'float64']).copy()
+    n_num_features = numeric_df.shape[1]
+   
+    n_cat_features = n_features - n_num_features
+
+    # --- Missing values ---
+    missing_values_pct = df.isnull().mean().mean() * 100.0
+
+    # --- Skewness & kurtosis (numeric only) ---
+    mean_skewness = float(numeric_df.skew().mean()) if not numeric_df.empty else np.nan
+    mean_kurtosis = float(numeric_df.kurtosis().mean()) if not numeric_df.empty else np.nan
+
+    # --- Correlations (numeric only) ---
+    avg_correlation = np.nan
+    max_correlation = np.nan
+    if not numeric_df.empty and numeric_df.shape[1] > 1:
+        try:
+            corr_matrix = numeric_df.corr().abs()
+            m = corr_matrix.shape[0]
+            # use upper triangle (excluding diagonal)
+            upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+            avg_correlation = float(upper.stack().mean()) if not upper.stack().empty else np.nan
+            max_correlation = float(upper.stack().max()) if not upper.stack().empty else np.nan
+        except Exception:
+            avg_correlation = np.nan
+            max_correlation = np.nan
+
+    # --- PCA fraction 95% variance (numeric only) ---
+    pca_fraction_95 = np.nan
+    n_comp_95 = 0
+    if not numeric_df.empty and numeric_df.shape[1] > 0 and numeric_df.shape[0] > 1:
+        try:
+            # fill missing with column medians for PCA
+            fill_vals = numeric_df.median()
+            X_num = numeric_df.fillna(fill_vals)
+            scaler = StandardScaler()
+            Xs = scaler.fit_transform(X_num)
+            max_comp = min(Xs.shape[0], Xs.shape[1])
+            pca = PCA(n_components=max_comp, random_state=random_state)
+            pca.fit(Xs)
+            cum_var = np.cumsum(pca.explained_variance_ratio_)
+            if np.any(cum_var >= 0.95):
+                n_comp_95 = int(np.searchsorted(cum_var, 0.95) + 1)
+            else:
+                n_comp_95 = max_comp
+            pca_fraction_95 = float(n_comp_95 / max(1, numeric_df.shape[1]))
+        except Exception:
+            pca_fraction_95 = np.nan
+            n_comp_95 = 0
+
+ 
+    try:
+        cluster_data = numeric_df.copy()
+        if cluster_data.shape[0] == 0:
+            # If no numeric columns, we cannot compute clustering metrics
+            silhouette_kmeans = np.nan
+            davies_bouldin = np.nan
+            calinski_harabasz = np.nan
+        else:
+            # Drop rows with all-NaNs, then fill others with medians
+            cluster_data = cluster_data.dropna(how='all')
+            if cluster_data.empty:
+                silhouette_kmeans = np.nan
+                davies_bouldin = np.nan
+                calinski_harabasz = np.nan
+            else:
+                # sample if very large
+                if cluster_data.shape[0] > sample_limit:
+                    cluster_data = cluster_data.sample(sample_limit, random_state=random_state)
+
+                cluster_data = cluster_data.fillna(cluster_data.median())
+
+                # Standardize before clustering
+                scaler = StandardScaler()
+                X_clust = scaler.fit_transform(cluster_data)
+
+                # --- Try KMeans for multiple k and compute metrics ---
+                best_silhouette = -1.0
+                best_db = np.inf
+                best_ch = -np.inf
+                best_k_for_silhouette = None
+                # define upper bound for k
+                k_upper = min(k_max, max(2, X_clust.shape[0] - 1))
+                k_lower = max(k_min, 2)
+                # ensure k_lower <= k_upper
+                if k_lower > k_upper:
+                    k_lower = k_upper
+
+                for k in range(k_lower, k_upper + 1):
+                    try:
+                        km = KMeans(n_clusters=k, random_state=random_state, n_init=10)
+                        labels = km.fit_predict(X_clust)
+                        # silhouette requires at least 2 clusters and < n_samples clusters
+                        if len(np.unique(labels)) < 2 or len(np.unique(labels)) >= X_clust.shape[0]:
+                            continue
+                        sil = silhouette_score(X_clust, labels)
+                        db = davies_bouldin_score(X_clust, labels)
+                        ch = calinski_harabasz_score(X_clust, labels)
+
+                        # track best by silhouette
+                        if sil > best_silhouette:
+                            best_silhouette = sil
+                            best_db = db
+                            best_ch = ch
+                            best_k_for_silhouette = k
+                    except Exception:
+                        # skip k if something fails (e.g., convergence)
+                        continue
+
+                # If no valid clustering was found, set NaNs
+                if best_k_for_silhouette is None:
+                    silhouette_kmeans = np.nan
+                    davies_bouldin = np.nan
+                    calinski_harabasz = np.nan
+                else:
+                    silhouette_kmeans = float(best_silhouette)
+                    davies_bouldin = float(best_db)
+                    calinski_harabasz = float(best_ch)
+    except Exception:
+        silhouette_kmeans = np.nan
+        davies_bouldin = np.nan
+        calinski_harabasz = np.nan
+
+    # --- Feature-to-instance ratio ---
+    feature_to_instance_ratio = float(n_features / max(1, n_instances))
+
+    # --- Build row ---
+    new_row = {
+        "n_instances": int(n_instances),
+        "n_features": int(n_features),
+        "n_num_features": int(n_num_features),
+        "missing_values_pct": float(np.round(missing_values_pct, 6)),
+        "mean_skewness": float(mean_skewness) if not np.isnan(mean_skewness) else np.nan,
+        "mean_kurtosis": float(mean_kurtosis) if not np.isnan(mean_kurtosis) else np.nan,
+        "avg_correlation": float(avg_correlation) if not np.isnan(avg_correlation) else np.nan,
+        "max_correlation": float(max_correlation) if not np.isnan(max_correlation) else np.nan,
+        "pca_fraction_95": float(pca_fraction_95) if not np.isnan(pca_fraction_95) else np.nan,
+        "silhouette_kmeans": float(silhouette_kmeans) if not np.isnan(silhouette_kmeans) else np.nan,
+        "davies_bouldin": float(davies_bouldin) if not np.isnan(davies_bouldin) else np.nan,
+        "calinski_harabasz": float(calinski_harabasz) if not np.isnan(calinski_harabasz) else np.nan,
+        "feature_to_instance_ratio": float(feature_to_instance_ratio),
+        "best_model": ""  
+    }
+
+ 
+    meta_row = pd.DataFrame([new_row])
+
+    if meta.empty:
+        meta = meta_row.copy()
+    else:
+        # align columns for stable concat
+        for c in meta.columns:
+            if c not in meta_row.columns:
+                meta_row[c] = np.nan
+        for c in meta_row.columns:
+            if c not in meta.columns:
+                meta[c] = np.nan
+        meta = pd.concat([meta, meta_row[meta.columns]], ignore_index=True)
+
+    # preserve original header order if possible
+    try:
+        if os.path.exists(meta_csv):
+            header_order = pd.read_csv(meta_csv, nrows=0).columns.tolist()
+            for k in new_row:
+                if k not in header_order:
+                    header_order.append(k)
+            meta = meta.reindex(columns=header_order)
+    except Exception:
+        pass
+
+    # save and return
+    try:
+        meta.to_csv(meta_csv, index=False)
+    except Exception as e:
+        print(f"❌ Error saving clustering meta CSV: {e}")
+
+    return meta
+
 if __name__ == "__main__":
     path = "../datasets/regression/car_price_prediction_.csv"
     meta_features_extract_reg(path,target_col='Price')
 
-    path2 = '../datasets/classification/transactions.csv'
+    path1 = '../datasets/classification/transactions.csv'
     meta_features_extract_class(path,None)
+
+    path2 = '../datasets/clustering/wine-clustering.csv'
+    meta_features_extract_clust(path,10000,2,10,0)
