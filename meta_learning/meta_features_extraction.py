@@ -118,6 +118,8 @@ def meta_features_extract_reg(dataset: str, target_col: str):
         print(f"⚠️ Error calculating entropy: {e}")
         mean_feature_entropy = np.nan
 
+    best_model = None
+
     # === Combine all meta-features ===
     meta_features = {
         "n_instances": n_instances,
@@ -135,7 +137,9 @@ def meta_features_extract_reg(dataset: str, target_col: str):
         "var_mean": var_mean,
         "var_std": var_std,
         "mean_feature_entropy": mean_feature_entropy,
-        "feature_to_instance_ratio": feature_to_instance_ratio
+        "feature_to_instance_ratio": feature_to_instance_ratio,
+        "task_type":"regression",
+        "best_model": best_model
     }
 
     # === Append to existing meta-dataset ===
@@ -145,7 +149,7 @@ def meta_features_extract_reg(dataset: str, target_col: str):
         dest.to_csv("meta_regression/meta_features_regression.csv", index=False)
         print("✅ Meta-features successfully extracted and saved.")
     except Exception as e:
-        print(f"❌ Error saving meta-features: {e}")
+        print(f" Error saving meta-features: {e}")
 
 
 def meta_features_extract_class(dataset_path,target_col_index=None):
@@ -273,6 +277,7 @@ def meta_features_extract_class(dataset_path,target_col_index=None):
         "max_mutual_info": max_mi,
         "pca_fraction_95": pca_fraction_95,
         "feature_to_instance_ratio": feature_to_instance_ratio,
+        "task_type" : "Classification",
         "best_model": best_model,
       
     }
@@ -314,7 +319,7 @@ def meta_features_extract_clust(dataset_path,sample_limit=10000,k_min=2,k_max=10
     try:
         df = pd.read_csv(dataset_path)
     except Exception as e:
-        print(f"❌ Error reading dataset: {e}")
+        print(f"Error reading dataset: {e}")
         return
 
     # --- Basic sizes ---
@@ -464,6 +469,7 @@ def meta_features_extract_clust(dataset_path,sample_limit=10000,k_min=2,k_max=10
         "davies_bouldin": float(davies_bouldin) if not np.isnan(davies_bouldin) else np.nan,
         "calinski_harabasz": float(calinski_harabasz) if not np.isnan(calinski_harabasz) else np.nan,
         "feature_to_instance_ratio": float(feature_to_instance_ratio),
+        "task_type" : "Clustering",
         "best_model": ""  
     }
 
@@ -497,7 +503,7 @@ def meta_features_extract_clust(dataset_path,sample_limit=10000,k_min=2,k_max=10
     try:
         meta.to_csv(meta_csv, index=False)
     except Exception as e:
-        print(f"❌ Error saving clustering meta CSV: {e}")
+        print(f"Error saving clustering meta CSV: {e}")
 
     return meta
 

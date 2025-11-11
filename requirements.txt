@@ -2,4 +2,4 @@ scikit-learn
 pandas
 numpy
 ipykernel
-math
+imbalanced-learn
