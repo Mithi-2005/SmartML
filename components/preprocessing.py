@@ -20,10 +20,17 @@ from sklearn.decomposition import PCA
 import os,json
 from datetime import datetime
 
+NA_STRINGS = ["NA", "N/A", "na", "Na", "NULL", "null", "?"]
+
 
 class Preproccessor:
     def __init__(self, dataframe, target_col):
-        self.df = pd.read_csv(dataframe,header=0)
+        self.df = pd.read_csv(
+            dataframe, 
+            header=0, 
+            na_values=NA_STRINGS,
+            keep_default_na=True
+        )        
         self.target_col = target_col
         self.X_train = None
         self.y_train = None
@@ -36,21 +43,167 @@ class Preproccessor:
         self.task_type=None
 
     def check_task(self):
-        if not self.target_col:
-            self.task_type="clustering"
-        elif self.df[self.target_col].nunique()<=20:
-            self.task_type="classification"
-        else:
-            self.task_type="regression"
         
+        y = self.df[self.target_col]
+
+        if pd.api.types.is_numeric_dtype(y):
+            if (y.dtype in [int, 'int32', 'int64']) and (y.nunique() <= 20):
+                self.task_type = "classification"
+            else:
+                self.task_type = "regression"
+
+        elif y.dtype == object or str(y.dtype) == "category":
+            self.task_type = "classification"
+
+        else:
+            self.task_type = "regression"
+
+        print(f"📌 Task detected: {self.task_type.upper()}")
         return self
+
     
-    
+    def drop_bad_columns(self):
+        df = self.df.copy()
+
+        print("[ DROP ] Dropping Bad Cols")
+        
+        # 1. Drop all-null columns
+        null_cols = df.columns[df.isna().all()].tolist()
+
+        # 2. Drop constant columns (same value everywhere)
+        constant_cols = [c for c in df.columns if df[c].nunique(dropna=True) <= 1]
+
+        # Avoid dropping target
+        to_drop = [c for c in (null_cols + constant_cols) if c != self.target_col]
+
+        print(f"[ DROP ] Dropping cols {to_drop}")
+        
+        if to_drop:
+            print(f"🧹 Dropping unusable columns: {to_drop}")
+            df.drop(columns=to_drop, inplace=True)
+
+        self.df = df
+        return self
+
     def remove_duplicates(self):
         self.df = self.df.drop_duplicates().reset_index(drop=True)
     
+    def drop_identifier_columns(self):
+
+        df = self.df.copy()
+        id_like_cols = []
+
+        # Common ID column name patterns
+        id_keywords = ["id", "uuid", "guid", "identifier", "serial", "index"]
+
+        for col in df.columns:
+            series = df[col]
+
+            # Skip target
+            if col == self.target_col:
+                continue
+
+            # 1) Column name indicates ID
+            if any(k in col.lower() for k in id_keywords):
+                id_like_cols.append(col)
+                continue
+
+            # 2) All values unique or nearly unique
+            unique_ratio = series.nunique(dropna=True) / len(series)
+            if unique_ratio >= 0.98:  
+                id_like_cols.append(col)
+                continue
+
+            # 3) Integer column with strictly increasing sequence (1,2,3,..)
+            if np.issubdtype(series.dtype, np.integer):
+                if series.is_monotonic_increasing:
+                    id_like_cols.append(col)
+                    continue
+
+            # 4) Long string with no repeated patterns (UUID-like)
+            if series.dtype == object and series.astype(str).str.len().median() > 15:
+                if unique_ratio > 0.9:
+                    id_like_cols.append(col)
+                    continue
+
+        # Drop ID columns
+        if id_like_cols:
+            df.drop(columns=id_like_cols, inplace=True)
+            print(f"🗑️ Dropped ID-like columns: {id_like_cols}")
+
+        self.df = df
+        return self
+
+
+    def handle_datetime_columns(self):
+        df = self.df.copy()
+
+        datetime_cols = []
+
+        # Regex patterns that *look like* dates
+        date_like_pattern = r"^\s*(\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4})"
+
+        for col in df.columns:
+
+            if col == self.target_col:
+                continue
+
+            s = df[col]
+
+            # Already datetime
+            if pd.api.types.is_datetime64_any_dtype(s):
+                datetime_cols.append(col)
+                continue
+
+            # Only attempt parse if:
+            #  - dtype object
+            #  - at least 80% entries match a date-like pattern
+            if s.dtype == object:
+                try:
+                    mask = s.astype(str).str.match(date_like_pattern, na=False)
+                    if mask.mean() < 0.8:
+                        continue  # NOT a datetime column
+
+                    parsed = pd.to_datetime(s, errors="coerce")
+
+                    if parsed.notna().mean() >= 0.8:
+                        df[col] = parsed
+                        datetime_cols.append(col)
+
+                except Exception:
+                    pass
+
+        # Expand selected datetime cols
+        new_features = {}
+        for col in datetime_cols:
+            new_features[f"{col}_year"] = df[col].dt.year
+            new_features[f"{col}_month"] = df[col].dt.month
+            new_features[f"{col}_day"] = df[col].dt.day
+            new_features[f"{col}_weekday"] = df[col].dt.weekday
+            new_features[f"{col}_hour"] = df[col].dt.hour
+            new_features[f"{col}_minute"] = df[col].dt.minute
+            new_features[f"{col}_second"] = df[col].dt.second
+            new_features[f"{col}_elapsed_days"] = (df[col] - df[col].min()).dt.days
+
+            df.drop(columns=[col], inplace=True)
+
+        if new_features:
+            df = pd.concat([df, pd.DataFrame(new_features, index=df.index)], axis=1)
+
+        self.df = df
+        print(f"📅 Datetime columns processed: {datetime_cols}")
+
+        return self
+
+
+
+
+    
+    
     def splitting(self):
         df = self.df
+        df = df.dropna(subset=[self.target_col])
+
         X = df.drop(columns=[self.target_col], axis=1)
         y = df[self.target_col]
         self.X_train, X_temp, self.y_train, y_temp = train_test_split(
@@ -103,39 +256,14 @@ class Preproccessor:
                 X_val[col] = X_val[col].fillna(mean_val)
 
         # 4️⃣ Discrete numeric imputation (KNN)
-        if len(discrete_cols) > 0:
-            X_train_discrete = X_train[discrete_cols].copy()
-            if X_train_discrete.isna().all().all() or X_train_discrete.shape[1] == 0:
-                print("⚠️ No valid discrete numeric columns to impute (all NaN or empty). Skipping KNN.")
-            else:
-                scaler = StandardScaler()
-                imputer = KNNImputer(n_neighbors=n_neighbors)
-                try:
-                    knn_train_scaled = scaler.fit_transform(X_train_discrete)
-                    imputed_train_scaled = imputer.fit_transform(knn_train_scaled)
-                    imputed_train_unscaled = np.round(scaler.inverse_transform(imputed_train_scaled))
-
-                    X_train[discrete_cols] = pd.DataFrame(imputed_train_unscaled, columns=discrete_cols, index=X_train.index)
-
-                    def _impute_other(df):
-                        if df is None or df.empty:
-                            return df
-                        df_discrete = df[discrete_cols].copy()
-                        if df_discrete.shape[1] == 0:
-                            return df
-                        scaled = scaler.transform(df_discrete)
-                        imputed_scaled = imputer.transform(scaled)
-                        imputed_unscaled = np.round(scaler.inverse_transform(imputed_scaled))
-                        df[discrete_cols] = pd.DataFrame(imputed_unscaled, columns=discrete_cols, index=df.index)
-                        return df
-
-                    X_test = _impute_other(X_test)
-                    X_val = _impute_other(X_val)
-
-                except ValueError as e:
-                    print(f"⚠️ Skipping KNN imputation due to: {e}")
-        else:
-            print("ℹ️ No discrete numeric columns detected — skipping KNN imputation.")
+        # 4️⃣ Discrete numeric imputation (simple fill instead of KNN)
+        for col in discrete_cols:
+            fill_val = X_train[col].median()  # median handles skewed data better
+            X_train[col] = X_train[col].fillna(fill_val)
+            if X_val is not None:
+                X_val[col] = X_val[col].fillna(fill_val)
+            if X_test is not None:
+                X_test[col] = X_test[col].fillna(fill_val)
 
         # 5️⃣ Final Fallback — fill any remaining NaNs (numeric → mean, categorical → mode)
         print("🔍 Checking for any remaining missing values...")
@@ -175,6 +303,10 @@ class Preproccessor:
     
         if self.X_train is None:
             raise ValueError("Call splitting() before remove_outliers_iqr().")
+        if self.X_train.shape[1] > 100:
+            print(f"⚠️ Skipping outlier removal (too many features: {self.X_train.shape[1]})")
+            return self
+
 
         X_train = self.X_train.copy()
         y_train = self.y_train.copy() if self.y_train is not None else None
@@ -191,7 +323,7 @@ class Preproccessor:
             self.X_train, self.y_train = X_train, y_train
             return self
 
-        # 🧠 Intelligent NaN handling
+        #  Intelligent NaN handling
         nan_stats = X_train[num_cols].isna().mean()
         to_drop = nan_stats[nan_stats >= nan_threshold_frac].index.tolist()
         to_fill = nan_stats[(nan_stats > 0) & (nan_stats < nan_threshold_frac)].index.tolist()
@@ -392,7 +524,16 @@ class Preproccessor:
     def apply_pca(self, variance_threshold=0.95):
         print("\nNaN check before PCA:")
         print(self.X_train.isna().sum()[self.X_train.isna().sum() > 0])
-        if self.X_train.shape[1]<50:
+        
+        if self.X_train is None or self.X_train.shape[0] == 0:
+            print("❗ PCA skipped: X_train is empty.")
+            return self
+
+        if self.X_train.shape[0] < 3:
+            print("❗ PCA skipped: too few samples.")
+            return self
+        
+        if self.X_train.shape[1]<40:
             return self
         if self.X_train is None:
             raise ValueError("Call splitting() and scaling() before apply_pca().")
@@ -427,12 +568,29 @@ class Preproccessor:
 
         X_train_was_df = isinstance(self.X_train, pd.DataFrame)
 
+        if self.task_type=='classification' and self.y_train.nunique() >= 20:
+            return self
+        
         if not X_train_was_df:
             Xtrain = pd.DataFrame(self.X_train)
         else:
             Xtrain = self.X_train.copy()
 
         ytrain = pd.Series(self.y_train).copy()
+        # Count samples per class
+        class_counts = ytrain.value_counts()
+
+        # If ANY class has only 1 sample — skip SMOTE
+        if class_counts.min() <= 2:
+            print(f"[SMOTE] Skipped — minority class has too few samples: {class_counts.to_dict()}")
+            return self
+
+        # Adjust k_neighbors automatically
+        safe_k = min(k_neighbors, class_counts.min() - 1)
+
+        if safe_k < 1:
+            print(f"[SMOTE] Skipped — safe_k < 1 (classes too small): {class_counts.to_dict()}")
+            return self
 
         sm = SMOTE(
             random_state=random_state,
@@ -514,21 +672,170 @@ class Preproccessor:
         return self
 
     def run_preprocessing(self):
-        self.remove_duplicates()
-        self.check_task()
-        self.splitting()
-        self.imputing_null_values()
-        self.remove_outliers_iqr()
-        self.universal_encoder()
-        self.scaling()
-        self.remove_high_correlation()
-        self.apply_pca()
-        self.data_balancing(random_state=42)
-        self.save_dataset()
-        
-        return self.X_train,self.y_train,self.X_test,self.y_test,self.X_val,self.y_val,self.task_type
 
+        print("\n[START] Robust Preprocessing Pipeline...")
 
+        # -----------------------------------------
+        # 1) Remove duplicates
+        # -----------------------------------------
+        try:
+            self.remove_duplicates()
+        except Exception as e:
+            print(f"⚠️ remove_duplicates failed: {e}")
+
+        # -----------------------------------------
+        # 2) Determine task type
+        # -----------------------------------------
+        try:
+            self.check_task()
+        except Exception as e:
+            print(f"⚠️ check_task failed: {e}")
+
+        # -----------------------------------------
+        # 3) Drop bad columns (constant, >95% missing, etc.)
+        # -----------------------------------------
+        try:
+            self.drop_bad_columns()
+        except Exception as e:
+            print(f"⚠️ drop_bad_columns failed: {e}")
+
+        # -----------------------------------------
+        # EARLY: Check dataset is not empty
+        # -----------------------------------------
+        if self.df.shape[0] == 0:
+            print("❌ Dataset empty after initial cleaning. Skipping.")
+            return None, None, None, None, None, None, self.task_type
+
+        # -----------------------------------------
+        # 4) Datetime handling
+        # -----------------------------------------
+        try:
+            self.handle_datetime_columns()
+        except Exception as e:
+            print(f"⚠️ Datetime handling skipped: {e}")
+
+        # -----------------------------------------
+        # 5) Splitting into train/val/test
+        # -----------------------------------------
+        try:
+            self.splitting()
+        except Exception as e:
+            print(f"❌ Splitting failed: {e}")
+            return None, None, None, None, None, None, self.task_type
+
+        if self.X_train is None or self.X_train.shape[0] == 0:
+            print("❌ No training rows available after splitting. Skipping dataset.")
+            return None, None, None, None, None, None, self.task_type
+
+        # -----------------------------------------
+        # 6) Missing Value Imputation
+        # -----------------------------------------
+        try:
+            self.imputing_null_values()
+        except Exception as e:
+            print(f"⚠️ Imputation failed — filling with fallback: {e}")
+            self.X_train = self.X_train.fillna(self.X_train.mean())
+            if self.X_val is not None:
+                self.X_val = self.X_val.fillna(self.X_train.mean())
+            if self.X_test is not None:
+                self.X_test = self.X_test.fillna(self.X_train.mean())
+
+        # -----------------------------------------
+        # 7) Outlier Removal (with backup)
+        # -----------------------------------------
+        X_bak = self.X_train.copy()
+        y_bak = self.y_train.copy()
+
+        try:
+            self.remove_outliers_iqr()
+        except Exception as e:
+            print(f"⚠️ Outlier removal failed — restoring backup: {e}")
+            self.X_train = X_bak
+            self.y_train = y_bak
+
+        if self.X_train.shape[0] == 0:
+            print("⚠️ Outlier removal removed ALL rows — restoring backup.")
+            self.X_train = X_bak
+            self.y_train = y_bak
+
+        # -----------------------------------------
+        # 8) Categorical Encoding
+        # -----------------------------------------
+        try:
+            self.universal_encoder()
+        except Exception as e:
+            print(f"⚠️ Encoding failed — skipping: {e}")
+
+        # -----------------------------------------
+        # 9) Scaling
+        # -----------------------------------------
+        try:
+            self.scaling()
+        except Exception as e:
+            print(f"⚠️ Scaling failed — skipping: {e}")
+
+        # -----------------------------------------
+        # 10) High Correlation Removal (with backup)
+        # -----------------------------------------
+        Xcorr_bak_train = self.X_train.copy()
+        Xcorr_bak_val   = self.X_val.copy() if self.X_val is not None else None
+        Xcorr_bak_test  = self.X_test.copy() if self.X_test is not None else None
+
+        try:
+            self.remove_high_correlation()
+        except Exception as e:
+            print(f"⚠️ Correlation removal failed — restoring backup: {e}")
+            self.X_train = Xcorr_bak_train
+            self.X_val   = Xcorr_bak_val
+            self.X_test  = Xcorr_bak_test
+
+        if self.X_train.shape[1] == 0:
+            print("⚠️ All features removed by correlation — restoring backup.")
+            self.X_train = Xcorr_bak_train
+            self.X_val   = Xcorr_bak_val
+            self.X_test  = Xcorr_bak_test
+
+        # -----------------------------------------
+        # 11) PCA (auto-skip)
+        # -----------------------------------------
+        if self.X_train.shape[1] >= 5:  # need at least 5 features for PCA
+            try:
+                self.apply_pca()
+            except Exception as e:
+                print(f"⚠️ PCA skipped: {e}")
+        else:
+            print("⚠️ PCA skipped (too few features).")
+
+        # -----------------------------------------
+        # 12) SMOTE (safe)
+        # -----------------------------------------
+        if self.task_type == "classification":
+            if self.y_train.nunique() > 1:
+                try:
+                    self.data_balancing(random_state=42)
+                except Exception as e:
+                    print(f"⚠️ SMOTE skipped: {e}")
+            else:
+                print("⚠️ SMOTE skipped — only one class present.")
+
+        # -----------------------------------------
+        # Final dataset safety check
+        # -----------------------------------------
+        if self.X_train.shape[0] == 0 or self.X_train.shape[1] == 0:
+            print("❌ Dataset empty after preprocessing — skipping.")
+            return None, None, None, None, None, None, self.task_type
+
+        # -----------------------------------------
+        # 13) Save dataset
+        # -----------------------------------------
+        try:
+            self.save_dataset()
+        except Exception as e:
+            print(f"⚠️ Saving failed: {e}")
+
+        print("[DONE] Preprocessing completed successfully.")
+
+        return self.X_train, self.y_train, self.X_test, self.y_test, self.X_val, self.y_val, self.task_type
 
 
 

@@ -1,5 +1,11 @@
 *.ipynb
 processed_datasets/
-*.vscode
+.vscode/
 *.csv
+datasets/
 __pycache__/
+meta_learning/meta_regression/meta_features_regression.csv
+meta_learning/meta_classification/meta_features_classification.csv
+datasets_trainer.py
+download_datasets.py
+*.txt
