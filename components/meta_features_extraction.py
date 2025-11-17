@@ -6,7 +6,6 @@
 
 import pandas as pd
 import numpy as np
-import math
 import os
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.decomposition import PCA
@@ -14,7 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from scipy.stats import entropy
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
-
+from constants import *
 
 
 
@@ -132,20 +131,21 @@ def meta_features_extract_reg(X_train, y_train, best_model, raw_df=None):
         "best_model": best_model
     }
 
-    os.makedirs("meta_learning/meta_regression", exist_ok=True)
-    save_path = "meta_learning/meta_regression/meta_features_regression.csv"
-
-    if os.path.exists(save_path):
-        df = pd.read_csv(save_path)
-        df = pd.concat([df, pd.DataFrame([meta_features])], ignore_index=True)
-    else:
-        df = pd.DataFrame([meta_features])
+    os.makedirs(os.path.dirname(META_REGRESSION_DATASET), exist_ok=True)
+    save_path = META_REGRESSION_DATASET
+    if best_model is not None:
+        if os.path.exists(save_path):
+            df = pd.read_csv(save_path)
+            df = pd.concat([df, pd.DataFrame([meta_features])], ignore_index=True)
+        else:
+            df = pd.DataFrame([meta_features])
 
     df.to_csv(save_path, index=False)
     print("✅ Regression meta-features saved.")
+    return pd.DataFrame([meta_features])
 
 
-def meta_features_extract_class(X_train, y_train, best_model, raw_df=None):
+def meta_features_extract_class(X_train, y_train, best_model, raw_df=None, save=True):
 
     if not isinstance(X_train, pd.DataFrame):
         X_train = pd.DataFrame(X_train)
@@ -245,17 +245,22 @@ def meta_features_extract_class(X_train, y_train, best_model, raw_df=None):
     }
 
 
-    os.makedirs("meta_learning/meta_classification", exist_ok=True)
-    save_path = "meta_learning/meta_classification/meta_features_classification.csv"
+    os.makedirs(os.path.dirname(META_CLASSIFICATION_DATASET), exist_ok=True)
+    save_path = META_CLASSIFICATION_DATASET
+    if best_model is not None:
+        if os.path.exists(save_path):
+            df = pd.read_csv(save_path)
+            df = pd.concat([df, pd.DataFrame([meta_features])], ignore_index=True)
+        else:
+            df = pd.DataFrame([meta_features])
 
-    if os.path.exists(save_path):
-        df = pd.read_csv(save_path)
-        df = pd.concat([df, pd.DataFrame([meta_features])], ignore_index=True)
-    else:
-        df = pd.DataFrame([meta_features])
+        df.to_csv(save_path, index=False)
+        print("✅ Classification meta-features saved.")
 
-    df.to_csv(save_path, index=False)
-    print("✅ Classification meta-features saved.")
+    return pd.DataFrame([meta_features])
+
+
+
 
 
 def meta_features_extract_clust(X_train, best_model="", raw_df=None):
@@ -341,8 +346,8 @@ def meta_features_extract_clust(X_train, best_model="", raw_df=None):
         "best_model": best_model
     }
 
-    os.makedirs("meta_learning/meta_clustering", exist_ok=True)
-    save_path = "meta_learning/meta_clustering/meta_features_clustering.csv"
+    os.makedirs("meta_model/meta_learning/meta_clustering", exist_ok=True)
+    save_path = "meta_model/meta_learning/meta_clustering/meta_features_clustering.csv"
 
     if os.path.exists(save_path):
         df = pd.read_csv(save_path)
@@ -352,13 +357,3 @@ def meta_features_extract_clust(X_train, best_model="", raw_df=None):
 
     df.to_csv(save_path, index=False)
     print("✅ Clustering meta-features saved.")
-
-if __name__ == "__main__":
-    path = "../datasets/regression/car_price_prediction_.csv"
-    meta_features_extract_reg(path,target_col='Price')
-
-    path1 = '../datasets/classification/transactions.csv'
-    meta_features_extract_class(path,None)
-
-    path2 = '../datasets/clustering/wine-clustering.csv'
-    meta_features_extract_clust(path,10000,2,10,0)

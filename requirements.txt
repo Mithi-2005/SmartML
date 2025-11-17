@@ -3,3 +3,5 @@ pandas
 numpy
 ipykernel
 imbalanced-learn
+xgboost
+lime

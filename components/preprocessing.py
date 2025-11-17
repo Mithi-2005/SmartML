@@ -709,10 +709,10 @@ class Preproccessor:
         # -----------------------------------------
         # 4) Datetime handling
         # -----------------------------------------
-        try:
-            self.handle_datetime_columns()
-        except Exception as e:
-            print(f"⚠️ Datetime handling skipped: {e}")
+        # try:
+        #     self.handle_datetime_columns()
+        # except Exception as e:
+        #     print(f"⚠️ Datetime handling skipped: {e}")
 
         # -----------------------------------------
         # 5) Splitting into train/val/test
