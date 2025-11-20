@@ -37,6 +37,11 @@ class MetaClassificationPredictor:
         ) = self.preprocessor.run_preprocessing()
 
         return self
+    
+    def check_task_type(self,task_type):
+        if(self.task_type !=task_type):
+            raise ValueError(f"This dataset is not suitable for {task_type.value}")
+
 
     def extract_meta_features(self):
         self.meta_row = meta_features_extract_class(
@@ -68,8 +73,9 @@ class MetaClassificationPredictor:
         probs = self.get_probabilities()
         return probs[:2]
 
-    def run_pipeline(self):
+    def run_pipeline(self,task_type):
         self.preprocess()
+        self.check_task_type(task_type)
         self.extract_meta_features()
         self.load_meta_model()
         self.get_probabilities()

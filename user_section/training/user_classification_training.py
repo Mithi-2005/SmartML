@@ -55,6 +55,7 @@ class UserClassificationTrainer:
         predictor:MetaClassificationPredictor,
         user_id,
         dataset_name,
+        task_type
     ):
 
         self.best_models = predictor.top_models
@@ -66,6 +67,7 @@ class UserClassificationTrainer:
         self.y_val = predictor.y_val
         self.user_id = user_id
         self.dataset_name = dataset_name
+        self.task_type = task_type
 
         self.models = {
             "LogisticRegression": LogisticRegression(max_iter=2000, n_jobs=-1),
@@ -89,7 +91,12 @@ class UserClassificationTrainer:
             },
         }
 
+    
     def train_and_tune_model(self, Tuning=False):
+
+        if(self.task_type!="classification"):
+            raise ValueError("Task type is not classification !")
+            
 
         all_results = []
 
@@ -137,7 +144,11 @@ class UserClassificationTrainer:
         dump(best_row["Estimator"], save_path)
         print(f"💾 Saved Best Model → {save_path}")
 
-        return best_row
+        return {
+            "best_model_name": best_row['Estimator'],
+            "best_model_path": save_path,
+            "all_results": all_results,
+        }
 
 
 

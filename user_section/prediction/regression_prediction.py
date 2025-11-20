@@ -31,7 +31,10 @@ class MetaRegressionPredictor:
             None,
         )
         
-        
+    def check_task_type(self,task_type):
+        if(self.task_type !=task_type):
+            raise ValueError(f"This dataset is not suitable for {task_type.value}")
+
     def preprocess(self):
         try:
             preprocessor = Preproccessor(
@@ -75,8 +78,9 @@ class MetaRegressionPredictor:
         except Exception as e:
             print(f"[ ERROR ] Model Prediction Failed ! {e}")
 
-    def run_pipeline(self):
+    def run_pipeline(self,task_type):
         self.preprocess()
+        self.check_task_type(task_type)
         self.extract_features()
         self.predict()
 

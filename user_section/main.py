@@ -29,7 +29,7 @@ class User:
             target_col=self.target_col,
         )
 
-        predictor.run_pipeline()
+        predictor.run_pipeline(task_type=self.task_type)
 
         trainer = UserRegressionTrainer(
             predictor, self.user_id, self.tuning, self.dataset_name
@@ -43,11 +43,13 @@ class User:
             dataset_path=self.dataset_path,
             tuning=self.tuning,
             target_col=self.target_col,
+            
+            
         )
 
-        predictor.run_pipeline()
+        predictor.run_pipeline(task_type =self.task_type)
 
-        trainer = UserClassificationTrainer(predictor, self.user_id, self.dataset_name)
+        trainer = UserClassificationTrainer(predictor, self.user_id, self.dataset_name , self.task_type)
 
         output = trainer.train_and_tune_model(self.tuning)
 
@@ -106,14 +108,3 @@ class User:
             return "Error with task!"
 
 
-if __name__ == "__main__":
-    user = User(
-        "datasets/classification/synthetic.csv",
-        user_id=1,
-        target_col="target",
-        tuning=False,
-        task_type="classification",
-        dataset_name="synthetic",
-    )
-    
-    user.start()
