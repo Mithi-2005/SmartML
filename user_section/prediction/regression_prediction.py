@@ -63,7 +63,7 @@ class MetaRegressionPredictor:
         try:
             print("[ TRY ] Trying to Extract Metafeatures")
             self.meta_data = meta_features_extract_reg(
-                self.X_train, self.y_train, "None", pd.read_csv(self.dataset_path)
+                self.X_train, self.y_train, None, pd.read_csv(self.dataset_path)
             )
             print("[ SUCCESS ] Meta Features Extracted Successfully")
         except Exception as e:

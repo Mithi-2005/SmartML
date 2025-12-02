@@ -34,7 +34,7 @@ def mean_feature_entropy_auto(numeric_df):
     return np.mean(entropies) if entropies else np.nan
 
 
-def meta_features_extract_reg(X_train, y_train, best_model, raw_df=None):
+def meta_features_extract_reg(X_train, y_train, best_model = None, raw_df=None):
 
     # Ensure DataFrame
     if not isinstance(X_train, pd.DataFrame):
@@ -140,12 +140,12 @@ def meta_features_extract_reg(X_train, y_train, best_model, raw_df=None):
         else:
             df = pd.DataFrame([meta_features])
 
-    df.to_csv(save_path, index=False)
-    print("✅ Regression meta-features saved.")
+        df.to_csv(save_path, index=False)
+        print("✅ Regression meta-features saved.")
     return pd.DataFrame([meta_features])
 
 
-def meta_features_extract_class(X_train, y_train, best_model, raw_df=None, save=True):
+def meta_features_extract_class(X_train, y_train, best_model = None, raw_df=None, save=True):
 
     if not isinstance(X_train, pd.DataFrame):
         X_train = pd.DataFrame(X_train)
