@@ -31,17 +31,21 @@ class MetaRegressionPredictor:
             None,
         )
         self.preprocessor = None
+        self.task_type = None
         
-    def check_task_type(self,task_type):
-        if(self.task_type !=task_type):
+    def check_task_type(self, task_type):
+        if self.task_type != task_type:
             raise ValueError(f"This dataset is not suitable for {task_type.value}")
 
     def preprocess(self):
+        """Preprocess the dataset using the new sklearn-style API."""
         try:
             preprocessor = Preproccessor(
                 dataframe=self.dataset_path, target_col=self.target_col
             )
             self.preprocessor = preprocessor
+            # Use the legacy method for backward compatibility
+            # This internally calls fit() and transform()
             (
                 self.X_train,
                 self.y_train,
@@ -51,7 +55,7 @@ class MetaRegressionPredictor:
                 self.y_val,
                 self.task_type,
             ) = preprocessor.run_preprocessing()
-            print("[ SUCCESS ]Preprocessing complete")
+            print("[ SUCCESS ] Preprocessing complete")
         except Exception as e:
             print(f"[ ERROR ] Preprocessing Failed ! {e}")
 

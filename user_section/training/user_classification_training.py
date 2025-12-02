@@ -198,13 +198,21 @@ class UserClassificationTrainer:
         )
         if self.status_tracker:
             self.status_tracker.update("packaging", "Saving classifier and building the bundle.")
-        bundle_path = export_user_bundle(
-            task_type="classification",
-            user_id=self.user_id,
-            dataset_name=self.dataset_name,
-            model_path=save_path,
-            preprocessor=self.preprocessor,
-        )
+        try:
+            bundle_path = export_user_bundle(
+                task_type="classification",
+                user_id=self.user_id,
+                dataset_name=self.dataset_name,
+                model_path=save_path,
+                preprocessor=self.preprocessor,
+                status_tracker=self.status_tracker,
+            )
+        except Exception as e:
+            if self.status_tracker:
+                self.status_tracker.error(f"Packaging failed: {str(e)}")
+            raise e
+
+        
 
         return {
             "best_model_name": best_model_name,

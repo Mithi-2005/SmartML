@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchModels, downloadModel, deleteModel, fetchBundles, downloadBundle } from '../lib/api'
+import { fetchModels, downloadModel, deleteModel, fetchBundles, downloadBundle, deleteBundle } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 
 const Models = () => {
@@ -38,6 +38,27 @@ const Models = () => {
       setStatus({ type: 'error', message: error.message })
     }
   }
+
+  const handleDeleteBundle = async (bundlePath) => {
+    if (!token) return
+    try {
+      await deleteBundle(token, bundlePath)
+      setStatus({ type: 'success', message: 'Bundle deleted.' })
+      const [refreshedModels, refreshedBundles] = await Promise.all([fetchModels(token), fetchBundles(token)])
+      setModels(refreshedModels)
+      setBundles(refreshedBundles)
+    } catch (error) {
+      setStatus({ type: 'error', message: error.message })
+    }
+  }
+
+  // Auto-dismiss success alerts
+  useEffect(() => {
+    if (status?.type === 'success') {
+      const timer = setTimeout(() => setStatus(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [status])
 
   const formatMetric = (metric) => {
     if (metric === null || metric === undefined) return 'N/A'
@@ -186,6 +207,22 @@ const Models = () => {
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path
                               d="M12 4v10m0 0 4-4m-4 4-4-4m-4 9h16"
+                              stroke="currentColor"
+                              strokeWidth="1.6"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn danger"
+                          aria-label={`Delete bundle ${bundle.name}`}
+                          onClick={() => handleDeleteBundle(bundle.path)}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                              d="M18 6l-1 14H7L6 6m3 0V4h6v2m-9 0h12"
                               stroke="currentColor"
                               strokeWidth="1.6"
                               strokeLinecap="round"

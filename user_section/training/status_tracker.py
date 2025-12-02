@@ -1,4 +1,6 @@
 import json
+import time
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -18,11 +20,27 @@ class TrainingStatusTracker:
         self.status_dir.mkdir(parents=True, exist_ok=True)
         self.status_file = self.status_dir / f"{dataset_name}.json"
 
+    def _retry_io(self, func, retries=5, delay=0.1):
+        """Retry file I/O operations to handle Windows file locking/permission errors."""
+        last_exception = None
+        for i in range(retries):
+            try:
+                return func()
+            except (PermissionError, OSError) as e:
+                last_exception = e
+                if i < retries - 1:
+                    time.sleep(delay + random.random() * 0.1)  # Add jitter
+        if last_exception:
+            raise last_exception
+
     def _load(self):
         if self.status_file.exists():
-            try:
+            def load_op():
                 with self.status_file.open("r", encoding="utf-8") as handle:
                     return json.load(handle)
+            
+            try:
+                return self._retry_io(load_op)
             except Exception:
                 pass
         return {
@@ -34,8 +52,15 @@ class TrainingStatusTracker:
     def _write(self, payload):
         payload["dataset"] = self.dataset_name
         payload["user_id"] = self.user_id
-        with self.status_file.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2)
+        
+        def write_op():
+            with self.status_file.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2)
+        
+        try:
+            self._retry_io(write_op)
+        except Exception as e:
+            print(f"Failed to write status file after retries: {e}")
 
     def _event(self, phase: str, message: str, state: str, completed: bool = False):
         return {
@@ -59,7 +84,7 @@ class TrainingStatusTracker:
         self._write(data)
 
     def complete(self, message: str = "Training finished"):
-        self.update("completed", message=message, completed=True)
+        self.update("finished", message=message, completed=True)
 
     def error(self, message: str):
         data = self._load()

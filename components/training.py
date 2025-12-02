@@ -760,12 +760,16 @@ class ClusteringTrainer:
 
 
 if __name__ == "__main__":
+    # Example usage of the Preproccessor
+    # Uses run_preprocessing() which is a legacy method maintained for backward compatibility
+    # It internally calls fit() and transform() following sklearn conventions
+    
     # dataset_path = "datasets/regression/synthetic_car_prices.csv"
     # preprocessor = Preproccessor(dataset_path, "Price")
     # X_train, y_train, X_test, y_test, X_val, y_val, task_type = (
     #     preprocessor.run_preprocessing()
     # )
-    # trainer = Regression_Training(X_train, y_train, X_test, y_test, X_val, y_val,dataset_path,"Price")
+    # trainer = Regression_Training(X_train, y_train, X_test, y_test, X_val, y_val, dataset_path, "Price")
     # trainer.train_model()
 
     dataset_path = "gender_classification.csv"

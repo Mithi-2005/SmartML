@@ -10,3 +10,4 @@ pymongo
 bcrypt
 passlib
 python-jose[cryptography]
+cloudpickle

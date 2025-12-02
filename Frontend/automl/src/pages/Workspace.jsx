@@ -7,6 +7,7 @@ import {
   downloadDataset,
   deleteDataset,
   fetchTrainingStatus,
+  fetchActiveTrainingRuns,
 } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 
@@ -29,8 +30,20 @@ const Workspace = () => {
   const [activeRun, setActiveRun] = useState(null)
   const [statusFeed, setStatusFeed] = useState([])
   const [statusError, setStatusError] = useState(null)
+  const [currentStatus, setCurrentStatus] = useState(null)
+  const [timeElapsed, setTimeElapsed] = useState(0)
 
   const updateForm = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  const formatElapsedTime = (seconds) => {
+    if (seconds < 60) return `${seconds}s`
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    if (mins < 60) return `${mins}m ${secs}s`
+    const hours = Math.floor(mins / 60)
+    const remainingMins = mins % 60
+    return `${hours}h ${remainingMins}m`
+  }
 
   const loadCatalogue = () => {
     if (!token) return
@@ -45,6 +58,54 @@ const Workspace = () => {
     loadCatalogue()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
+
+  // Restore active runs on mount
+  useEffect(() => {
+    if (!token) return
+
+    const restoreActiveRuns = async () => {
+      try {
+        // Fetch active runs from backend
+        const response = await fetchActiveTrainingRuns(token)
+        const backendRuns = response?.active_runs || []
+
+        // Also check localStorage for any runs
+        const storedRun = localStorage.getItem('smartml_active_run')
+        
+        if (backendRuns.length > 0) {
+          // Use the first active run from backend
+          const run = backendRuns[0]
+          setActiveRun({
+            datasetId: run.dataset_id,
+            name: run.name,
+          })
+        } else if (storedRun) {
+          // Fallback to localStorage if backend has no active runs
+          try {
+            const parsed = JSON.parse(storedRun)
+            setActiveRun(parsed)
+          } catch (e) {
+            localStorage.removeItem('smartml_active_run')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to restore active runs:', error)
+      }
+    }
+
+    restoreActiveRuns()
+  }, [token])
+
+
+  // Auto-dismiss success alerts after 5 seconds
+  useEffect(() => {
+    if (status?.type === 'success') {
+      const timer = setTimeout(() => {
+        setStatus(null)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [status])
 
   const hydrateColumns = async (file) => {
     if (!token || !file) return
@@ -85,25 +146,31 @@ const Workspace = () => {
     setStatus(null)
     try {
       const response = await uploadDataset(token, { ...form, file: datasetFile })
+      
+      // Set activeRun immediately to start polling
+      if (response?.status?.dataset_id) {
+        const newRun = {
+          datasetId: response.status.dataset_id,
+          name: response.dataset?.original_name ?? 'dataset',
+        }
+        setActiveRun(newRun)
+        // Persist to localStorage
+        localStorage.setItem('smartml_active_run', JSON.stringify(newRun))
+        setStatusFeed([])
+        setStatusError(null)
+        setSubmitting(false) // Reset button immediately
+      }
+      
       setStatus({
         type: 'success',
-        message: 'Dataset received. Sit tight while we preprocess and train.',
+        message: 'Dataset uploaded successfully. Training started.',
       })
       setDatasetFile(null)
       setColumns([])
       setForm(initialPayload)
-      if (response?.status?.dataset_id) {
-        setActiveRun({
-          datasetId: response.status.dataset_id,
-          name: response.dataset?.original_name ?? 'dataset',
-        })
-        setStatusFeed([])
-        setStatusError(null)
-      }
       loadCatalogue()
     } catch (error) {
       setStatus({ type: 'error', message: error.message })
-    } finally {
       setSubmitting(false)
     }
   }
@@ -130,9 +197,12 @@ const Workspace = () => {
         const res = await fetchTrainingStatus(token, activeRun.datasetId)
         if (!cancelled) {
           setStatusFeed(res?.history ?? [])
+          setCurrentStatus(res?.current ?? null)
           setStatusError(null)
           if (res?.current?.state === 'completed' || res?.current?.state === 'error') {
             setActiveRun((prev) => (prev ? { ...prev, terminalState: res.current.state } : prev))
+            // Clean up localStorage when training completes
+            localStorage.removeItem('smartml_active_run')
             return true
           }
         }
@@ -165,6 +235,35 @@ const Workspace = () => {
       }
     }
   }, [token, activeRun?.datasetId])
+
+  // Track elapsed time in current stage
+  useEffect(() => {
+    if (!currentStatus?.timestamp) {
+      setTimeElapsed(0)
+      return
+    }
+
+    // Don't update timer if in terminal state
+    if (currentStatus.state === 'completed' || currentStatus.state === 'error') {
+      const start = new Date(currentStatus.timestamp)
+      const now = new Date()
+      const diff = Math.floor((now - start) / 1000)
+      setTimeElapsed(diff)
+      return
+    }
+
+    const updateElapsed = () => {
+      const start = new Date(currentStatus.timestamp)
+      const now = new Date()
+      const diff = Math.floor((now - start) / 1000)
+      setTimeElapsed(diff)
+    }
+
+    updateElapsed()
+    const interval = setInterval(updateElapsed, 1000)
+
+    return () => clearInterval(interval)
+  }, [currentStatus?.timestamp, currentStatus?.state])
 
   const formattedStatus = useMemo(
     () =>
@@ -217,28 +316,66 @@ const Workspace = () => {
           <div className="form-heading">
             <h3>Live training status</h3>
             <p>Tracking: {activeRun.name}</p>
-            {activeRun.terminalState && (
-              <span className={`badge ${activeRun.terminalState === 'completed' ? 'success' : 'error'}`}>
-                {activeRun.terminalState === 'completed' ? 'Finished' : 'Failed'}
-              </span>
-            )}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {activeRun.terminalState && (
+                <span className={`badge ${activeRun.terminalState === 'completed' ? 'success' : 'error'}`}>
+                  {activeRun.terminalState === 'completed' ? 'Finished' : 'Failed'}
+                </span>
+              )}
+              {activeRun.terminalState === 'completed' && (
+                <NavLink to="/models" className="btn primary" style={{ fontSize: '0.875rem', padding: '0.375rem 0.75rem' }}>
+                  Go to Models →
+                </NavLink>
+              )}
+            </div>
           </div>
           {statusError && <p className="muted">Status temporarily unavailable: {statusError}</p>}
-          {formattedStatus.length ? (
-            <ol className="status-timeline">
-              {formattedStatus.map((event) => (
-                <li key={event.id}>
-                  <div className="status-header">
-                    <strong>{event.phase}</strong>
-                    <span>{event.time}</span>
-                  </div>
-                  <p>{event.message}</p>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="muted">Waiting for the first update…</p>
+          
+          {currentStatus && (
+            <div className="current-stage">
+              <div className="current-stage-header">
+                <span className={`current-stage-badge ${currentStatus.state}`}>
+                  {currentStatus.state === 'running' && (
+                    <svg className="stage-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="31.4 31.4" />
+                    </svg>
+                  )}
+                  {currentStatus.state === 'completed' && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                  {currentStatus.state === 'error' && (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                  )}
+                  <span className="phase-name">{currentStatus.phase}</span>
+                </span>
+                <span className="current-stage-timer">⏱ {formatElapsedTime(timeElapsed)}</span>
+              </div>
+              <p className="current-stage-message">{currentStatus.message}</p>
+            </div>
           )}
+
+          {formattedStatus.length ? (
+            <>
+              <h4 className="history-heading">History</h4>
+              <ol className="status-timeline">
+                {formattedStatus.map((event) => (
+                  <li key={event.id}>
+                    <div className="status-header">
+                      <strong>{event.phase}</strong>
+                      <span>{event.time}</span>
+                    </div>
+                    <p>{event.message}</p>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : !currentStatus ? (
+            <p className="muted">Waiting for the first update…</p>
+          ) : null}
         </div>
       )}
 

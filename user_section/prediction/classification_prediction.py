@@ -23,9 +23,13 @@ class MetaClassificationPredictor:
         self.meta_model = None
         self.meta_row = None
         self.explainer = None
-        self.tuning=tuning
+        self.tuning = tuning
+        self.task_type = None
 
     def preprocess(self):
+        """Preprocess the dataset using the new sklearn-style API."""
+        # Use the legacy method for backward compatibility
+        # This internally calls fit() and transform()
         (
             self.X_train,
             self.y_train,

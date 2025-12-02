@@ -93,6 +93,12 @@ export const fetchTrainingStatus = (token, datasetId) =>
     headers: withAuth(token),
   }).then(handleResponse)
 
+export const fetchActiveTrainingRuns = (token) =>
+  fetch(`${API_BASE}/users/active_training_runs`, {
+    headers: withAuth(token),
+  }).then(handleResponse)
+
+
 const downloadBinary = async (path, filename, token, requiresAuth = false) => {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: requiresAuth ? withAuth(token) : undefined,
@@ -130,3 +136,8 @@ export const deleteModel = (token, filePath) =>
     headers: withAuth(token),
   }).then(handleResponse)
 
+export const deleteBundle = (token, filePath) =>
+  fetch(`${API_BASE}/users/delete_bundle?file_path=${encodeURIComponent(filePath)}`, {
+    method: 'DELETE',
+    headers: withAuth(token),
+  }).then(handleResponse)

@@ -2,6 +2,8 @@ import os
 import shutil
 import json
 import bcrypt
+import threading
+import logging
 from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Form,APIRouter, Query
 from fastapi.responses import FileResponse
 from pymongo import MongoClient
@@ -18,6 +20,13 @@ from user_section.training.status_tracker import TrainingStatusTracker
 from io import BytesIO
 from pathlib import Path
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 client = MongoClient(os.getenv("MONGO_DB_URI"))
 db = client["MetaML"]
@@ -158,47 +167,20 @@ def get_dataset(
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500,detail="Internal Server Error! Dont worry it is not your fault!")
-    try :
-        training_result = start_train(train_dataset)
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500,detail="An error occurred while training make sure that your target_col and task_type are correct, if still issue persists feel free to contact us!")
+    
+    # Start training in background thread
+    dataset_id = Path(unique_name).stem
+    thread = threading.Thread(
+        target=start_train_async,
+        args=(train_dataset,),
+        daemon=True
+    )
+    thread.start()
+    logging.info(f"[UPLOAD] Started background training for dataset {dataset_id}")
 
-    model_info = {}
-    bundle_info = {}
-
-    if training_result:
-        best_model_path = training_result.get("best_model_path")
-        bundle_path = training_result.get("bundle_path")
-
-        if best_model_path:
-            try:
-                rel_model = str(Path(best_model_path).resolve().relative_to(Path(USERS_FOLDER).resolve()))
-            except ValueError:
-                rel_model = best_model_path
-
-            model_info = {
-                "name": training_result.get("best_model_name"),
-                "path": rel_model,
-                "metric": training_result.get("test_r2") or training_result.get("test_accuracy"),
-                "download_url": f"/users/download_model?file_path={rel_model}",
-                "reason": training_result.get("model_reason"),
-                "human_metric": training_result.get("human_metric"),
-            }
-
-        if bundle_path:
-            try:
-                rel_bundle = str(Path(bundle_path).resolve().relative_to(Path(USERS_FOLDER).resolve()))
-            except ValueError:
-                rel_bundle = bundle_path
-
-            bundle_info = {
-                "path": rel_bundle,
-                "download_url": f"/users/download_bundle?file_path={rel_bundle}"
-            }
-
+    # Return immediately with dataset_id for polling
     return {
-        "message": "Dataset processed and model trained successfully.",
+        "message": "Dataset uploaded successfully. Training started.",
         "dataset": {
             "original_name": file.filename,
             "stored_name": unique_name,
@@ -206,13 +188,26 @@ def get_dataset(
             "target_col": target_col,
             "dataset_id": dataset_id,
         },
-        "model": model_info,
-        "bundle": bundle_info,
         "status": {
             "dataset_id": dataset_id,
             "poll_url": f"/users/training_status?dataset_id={dataset_id}",
         },
     }
+
+def start_train_async(train_dataset: TrainDataset):
+    """Run training in background thread with error handling"""
+    dataset_id = Path(train_dataset.dataset.stored_name).stem
+    try:
+        logging.info(f"[TRAINING] Starting async training for dataset {dataset_id}")
+        start_train(train_dataset)
+        logging.info(f"[TRAINING] Completed training for dataset {dataset_id}")
+    except Exception as e:
+        logging.error(f"[TRAINING] Failed for dataset {dataset_id}: {str(e)}", exc_info=True)
+        try:
+            tracker = TrainingStatusTracker(train_dataset.dataset.user_id, dataset_id)
+            tracker.error(f"Training failed: {str(e)}")
+        except Exception as tracker_error:
+            logging.error(f"[TRAINING] Failed to update status tracker: {tracker_error}")
 
 def start_train(
     train_dataset: TrainDataset
@@ -355,6 +350,38 @@ def get_training_status(dataset_id: str = Query(...), user=Depends(verify_token)
         raise HTTPException(status_code=500, detail=f"Unable to read training status: {exc}")
 
 
+@app.get("/users/active_training_runs")
+def get_active_training_runs(user=Depends(verify_token)):
+    """Get all active (non-terminal) training runs for the authenticated user"""
+    status_dir = Path(USERS_FOLDER) / user["username"] / "status"
+    
+    if not status_dir.exists():
+        return {"active_runs": []}
+    
+    active_runs = []
+    
+    for status_file in status_dir.glob("*.json"):
+        try:
+            status_data = json.loads(status_file.read_text(encoding="utf-8"))
+            current = status_data.get("current")
+            
+            # Only include runs that are not in terminal state
+            if current and current.get("state") not in ["completed", "error"]:
+                dataset_id = status_file.stem
+                active_runs.append({
+                    "dataset_id": dataset_id,
+                    "name": status_data.get("dataset_name", dataset_id),
+                    "current_phase": current.get("phase"),
+                    "current_state": current.get("state"),
+                })
+        except Exception as e:
+            logging.warning(f"Failed to read status file {status_file}: {e}")
+            continue
+    
+    return {"active_runs": active_runs}
+
+
+
 @app.delete("/users/delete_model")
 def delete_model(file_path: str = Query(...), user=Depends(verify_token)):
     user_base = (Path(USERS_FOLDER) / user["username"] / "models").resolve()
@@ -373,6 +400,23 @@ def delete_model(file_path: str = Query(...), user=Depends(verify_token)):
 
     return {"msg": "Model deleted"}
 
+
+
+@app.delete("/users/delete_bundle")
+def delete_bundle(file_path: str = Query(...), user=Depends(verify_token)):
+    """Delete a bundle file"""
+    user_base = (Path(USERS_FOLDER) / user["username"] / "templates").resolve()
+    abs_path = (Path(USERS_FOLDER) / file_path).resolve()
+
+    if user_base not in abs_path.parents:
+        raise HTTPException(403, "Not allowed")
+
+    if not abs_path.exists():
+        raise HTTPException(404, "Bundle not found")
+
+    abs_path.unlink()
+    logging.info(f"[DELETE] Bundle deleted: {file_path}")
+    return {"msg": "Bundle deleted"}
 
 
 @app.get("/users/get_datasets")

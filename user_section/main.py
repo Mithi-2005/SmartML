@@ -49,7 +49,6 @@ class User:
         )
 
         output = trainer.train_and_tune_model()
-        self._status("training_complete", "Finished training and evaluating the candidate regressors.")
         print(output)
         return output
 
@@ -72,7 +71,6 @@ class User:
         )
 
         output = trainer.train_and_tune_model(self.tuning)
-        self._status("training_complete", "Finished training and evaluating the candidate classifiers.")
         print(output)
         return output
 
@@ -80,41 +78,55 @@ class User:
         try:
             if self.task_type == "regression":
                 output = self.regression()
-                new_entry = {
-                    "user_id": self.user_id,
-                    "dataset_name": self.dataset_name,
-                    "dataset_path": self.dataset_path,
-                    "target_col": self.target_col,
-                }
-
-                os.makedirs(
-                    os.path.dirname(PENDING_DATSETS_REGRESSION_FILE), exist_ok=True
-                )
-
-                df = pd.read_csv(PENDING_DATSETS_REGRESSION_FILE)
-                df = pd.concat([df, pd.DataFrame([new_entry])], axis=0, ignore_index=True)
-                df.to_csv(PENDING_DATSETS_REGRESSION_FILE, index=False)
+                
+                # Mark training as complete BEFORE updating CSV to ensure status is set
+                if self.status_tracker:
+                    self.status_tracker.complete("Model ready and bundle packaged.")
+                
+                # Update pending datasets CSV (non-critical, don't fail if this errors)
+                try:
+                    new_entry = {
+                        "user_id": self.user_id,
+                        "dataset_name": self.dataset_name,
+                        "dataset_path": self.dataset_path,
+                        "target_col": self.target_col,
+                    }
+                    os.makedirs(
+                        os.path.dirname(PENDING_DATSETS_REGRESSION_FILE), exist_ok=True
+                    )
+                    df = pd.read_csv(PENDING_DATSETS_REGRESSION_FILE)
+                    df = pd.concat([df, pd.DataFrame([new_entry])], axis=0, ignore_index=True)
+                    df.to_csv(PENDING_DATSETS_REGRESSION_FILE, index=False)
+                except Exception as csv_error:
+                    print(f"[WARNING] Failed to update pending datasets CSV: {csv_error}")
+                    
             elif self.task_type == "classification":
                 output = self.classification()
-                new_entry = {
-                    "user_id": self.user_id,
-                    "dataset_name": self.dataset_name,
-                    "dataset_path": self.dataset_path,
-                    "target_col": self.target_col,
-                }
-
-                os.makedirs(
-                    os.path.dirname(PENDING_DATSETS_CLASSIFICATION_FILE), exist_ok=True
-                )
-
-                df = pd.read_csv(PENDING_DATSETS_CLASSIFICATION_FILE)
-                df = pd.concat([df, pd.DataFrame([new_entry])], axis=0, ignore_index=True)
-                df.to_csv(PENDING_DATSETS_CLASSIFICATION_FILE, index=False)
+                
+                # Mark training as complete BEFORE updating CSV to ensure status is set
+                if self.status_tracker:
+                    self.status_tracker.complete("Model ready and bundle packaged.")
+                
+                # Update pending datasets CSV (non-critical, don't fail if this errors)
+                try:
+                    new_entry = {
+                        "user_id": self.user_id,
+                        "dataset_name": self.dataset_name,
+                        "dataset_path": self.dataset_path,
+                        "target_col": self.target_col,
+                    }
+                    os.makedirs(
+                        os.path.dirname(PENDING_DATSETS_CLASSIFICATION_FILE), exist_ok=True
+                    )
+                    df = pd.read_csv(PENDING_DATSETS_CLASSIFICATION_FILE)
+                    df = pd.concat([df, pd.DataFrame([new_entry])], axis=0, ignore_index=True)
+                    df.to_csv(PENDING_DATSETS_CLASSIFICATION_FILE, index=False)
+                except Exception as csv_error:
+                    print(f"[WARNING] Failed to update pending datasets CSV: {csv_error}")
+                    
             else:
                 raise ValueError("Error with task!")
 
-            if self.status_tracker:
-                self.status_tracker.complete("Model ready and bundle packaged.")
             return output
         except Exception as e:
             if self.status_tracker:
