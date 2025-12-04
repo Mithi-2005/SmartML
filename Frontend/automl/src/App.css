@@ -525,6 +525,9 @@ main {
   padding: 1rem 1.25rem;
   border-radius: 1rem;
   background: rgba(148, 163, 184, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .alert.success {
@@ -758,7 +761,8 @@ main {
 
 /* ===== Forms ===== */
 .auth-container {
-  max-width: 600px;
+  max-width: 700px;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -784,6 +788,10 @@ main {
   cursor: pointer;
   transition: all var(--transition-fast);
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .auth-tab:hover {
@@ -840,7 +848,7 @@ form {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
 }
 
