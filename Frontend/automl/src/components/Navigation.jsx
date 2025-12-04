@@ -1,55 +1,62 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { useSession } from '../context/SessionContext'
+import { NavLink, useNavigate } from "react-router-dom";
+import { useSession } from "../context/SessionContext";
 
 const links = [
-  { path: '/', label: 'Overview' },
-  { path: '/workspace', label: 'Workspace' },
-  { path: '/models', label: 'Models' },
-]
+  { path: "/", label: "Home", icon: "fa-home" },
+  { path: "/workspace", label: "Workspace", icon: "fa-bolt" },
+  { path: "/models", label: "Models", icon: "fa-robot" },
+];
 
 const Navigation = () => {
-  const { profile, logout } = useSession()
-  const navigate = useNavigate()
+  const { profile, logout } = useSession();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout()
-    navigate('/auth')
-  }
+    logout();
+    navigate("/auth");
+  };
 
   return (
     <header className="nav-shell">
       <NavLink to="/" className="brand">
-        <span className="brand-mark">MetaML</span>
-        <span className="brand-subtitle">Autopilot</span>
+        <span className="brand-mark">SmartML</span>
+        <span className="brand-subtitle">AutoML Platform</span>
       </NavLink>
       <nav>
         {links.map((link) => (
           <NavLink
             key={link.path}
             to={link.path}
-            className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
           >
+            <i
+              className={`fas ${link.icon}`}
+              style={{ marginRight: "0.5rem" }}
+            ></i>
             {link.label}
           </NavLink>
         ))}
         {profile ? (
           <>
             <NavLink to="/auth" className="nav-link nav-cta">
-              Hi, {profile.fname}
+              <i className="fas fa-user"></i> {profile.fname}
             </NavLink>
-            <button type="button" className="nav-link nav-logout" onClick={handleLogout}>
-              Logout
+            <button
+              type="button"
+              className="nav-link nav-logout"
+              onClick={handleLogout}
+            >
+              Sign Out
             </button>
           </>
         ) : (
           <NavLink to="/auth" className="nav-link nav-cta">
-            Access
+            Sign In
           </NavLink>
         )}
       </nav>
     </header>
-  )
-}
+  );
+};
 
-export default Navigation
-
+export default Navigation;
