@@ -11,7 +11,7 @@ SmartML is a powerful, user-friendly platform designed to democratize machine le
     - Intelligent outlier detection and removal.
     - Categorical encoding (One-Hot, Target, Frequency).
     - Feature scaling and high-correlation removal.
-    - Automated PCA for dimensionality reduction.
+    - Automated PCA for dimensionality reduction if the dataset has more features.
 - **🤖 AutoML Engine**:
     - Supports both **Classification** and **Regression** tasks.
     - Trains multiple algorithms (Random Forest, XGBoost, Linear/Logistic Regression, SVM, etc.).
