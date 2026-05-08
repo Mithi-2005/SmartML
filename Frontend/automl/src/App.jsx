@@ -5,7 +5,6 @@ import Auth from './pages/Auth'
 import Workspace from './pages/Workspace'
 import Models from './pages/Models'
 import { SessionProvider } from './context/SessionContext'
-import './App.css'
 
 function App() {
   return (

@@ -417,8 +417,34 @@ def export_user_bundle(task_type: str, user_id: str, dataset_name: str, model_pa
     zip_base_name = str(base_dir / dataset_name)
     zip_path_str = shutil.make_archive(zip_base_name, 'zip', root_dir=bundle_dir)
     zip_path = Path(zip_path_str)
+
+    model_file = Path(model_path)
+    meta_path = model_file.with_suffix(".meta.json")
+    template_meta_path = base_dir / f"{dataset_name}.meta.json"
+    if meta_path.exists():
+        shutil.copy2(meta_path, template_meta_path)
     
     if zip_path:
-        status_tracker.update("completed", "Packaging completed. Bundle ready.", completed=True)
+        if status_tracker:
+            status_tracker.update("completed", "Packaging completed. Bundle ready.", completed=True)
+
+        # Cleanup: Delete the templates folder (bundle_dir)
+        try:
+            shutil.rmtree(bundle_dir)
+        except Exception as e:
+            print(f"Warning: Failed to cleanup bundle directory: {e}")
+
+        # Cleanup: Delete the model file
+        try:
+            if model_file.exists():
+                model_file.unlink()
+            
+            # Cleanup: Delete the metadata file (.meta.json)
+            # Assuming model path is .../dataset_name.pkl, meta is .../dataset_name.meta.json
+            if meta_path.exists():
+                meta_path.unlink()
+                
+        except Exception as e:
+            print(f"Warning: Failed to cleanup model files: {e}")
 
     return zip_path

@@ -1,7 +1,22 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { loginUser, registerUser } from "../lib/api";
 import { useSession } from "../context/SessionContext";
+
+const fadeUp = {
+  initial: { opacity: 0, y: 20 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: "-40px" },
+  transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
+};
+
+const authFeatures = [
+  { icon: "fa-cloud-arrow-up", text: "Upload datasets and get instant analysis" },
+  { icon: "fa-brain", text: "AI-powered model selection and training" },
+  { icon: "fa-box-open", text: "Download production-ready model packages" },
+  { icon: "fa-shield-halved", text: "Enterprise-grade security for your data" },
+];
 
 const Auth = () => {
   const { setToken, profile } = useSession();
@@ -21,13 +36,10 @@ const Auth = () => {
   const [registerStatus, setRegisterStatus] = useState(null);
   const [registerLoading, setRegisterLoading] = useState(false);
 
-  const updateLogin = (field, value) => {
+  const updateLogin = (field, value) =>
     setLoginForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const updateRegister = (field, value) => {
+  const updateRegister = (field, value) =>
     setRegisterForm((prev) => ({ ...prev, [field]: value }));
-  };
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -70,298 +82,298 @@ const Auth = () => {
     }
   };
 
-  // If user is already logged in, show a different view
+  /* ---- Already authenticated ---- */
   if (profile) {
     return (
       <section className="page auth">
-        <header>
+        <motion.header {...fadeUp}>
           <p className="eyebrow">Already Authenticated</p>
           <h1>Welcome Back, {profile.fname || profile.username}!</h1>
           <p className="lead">
             You're already signed in. Ready to build amazing ML models?
           </p>
-        </header>
+        </motion.header>
 
-        <div className="auth-container">
+        <motion.div
+          className="card"
+          style={{ textAlign: "center", padding: "2.5rem 2rem" }}
+          {...fadeUp}
+        >
           <div
-            className="card"
             style={{
-              textAlign: "center",
-              padding: "3rem 2rem",
-              background:
-                "linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(34, 197, 94, 0.08))",
-              border: "1px solid rgba(14, 165, 233, 0.2)",
+              width: 72,
+              height: 72,
+              margin: "0 auto 1.25rem",
+              background: "linear-gradient(135deg, var(--amber-500), var(--teal-500))",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1.75rem",
+              color: "#ffffff",
             }}
           >
-            <div
-              style={{
-                width: "80px",
-                height: "80px",
-                margin: "0 auto 1.5rem",
-                background:
-                  "linear-gradient(135deg, var(--primary-500), var(--accent-500))",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "2rem",
-                boxShadow: "0 8px 24px rgba(14, 165, 233, 0.3)",
-              }}
-            >
-              <i className="fas fa-user-check"></i>
-            </div>
-            <h2 style={{ marginBottom: "0.75rem", color: "var(--gray-100)" }}>
-              You're All Set!
-            </h2>
-            <p
-              style={{
-                color: "var(--gray-400)",
-                marginBottom: "2rem",
-                fontSize: "1.0625rem",
-              }}
-            >
-              Signed in as{" "}
-              <strong style={{ color: "var(--primary-400)" }}>
-                {profile.email}
-              </strong>
-            </p>
-            <div
-              style={{
-                display: "flex",
-                gap: "1rem",
-                justifyContent: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                onClick={() => navigate("/workspace")}
-                className="btn primary"
-                style={{ minWidth: "180px" }}
-              >
-                <i className="fas fa-rocket"></i> Go to Workspace
-              </button>
-              <button
-                onClick={() => navigate("/")}
-                className="btn secondary"
-                style={{ minWidth: "180px" }}
-              >
-                <i className="fas fa-home"></i> Back to Home
-              </button>
-            </div>
+            <i className="fas fa-user-check" />
           </div>
-        </div>
-
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "2rem",
-            background:
-              "linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(14, 165, 233, 0.08))",
-            border: "1px solid rgba(168, 85, 247, 0.2)",
-          }}
-        >
-          <h3 style={{ marginBottom: "0.75rem" }}>
-            <i className="fas fa-lightbulb"></i> Quick Tips
-          </h3>
-          <p style={{ color: "var(--gray-400)" }}>
-            Upload your dataset in the Workspace, let SmartML handle
-            preprocessing and model selection, then download your trained models
-            ready for deployment.
+          <h3 style={{ marginBottom: "0.5rem" }}>You're All Set!</h3>
+          <p style={{ marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
+            Signed in as{" "}
+            <strong style={{ color: "var(--amber-600)" }}>
+              {profile.email}
+            </strong>
           </p>
-        </div>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.75rem",
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              onClick={() => navigate("/workspace")}
+              className="btn primary"
+            >
+              <i className="fas fa-rocket" /> Go to Workspace
+            </button>
+            <button
+              onClick={() => navigate("/")}
+              className="btn secondary"
+            >
+              <i className="fas fa-house" /> Back to Home
+            </button>
+          </div>
+        </motion.div>
       </section>
     );
   }
 
+  /* ---- Sign in / Sign up ---- */
   return (
     <section className="page auth">
-      <header>
-        <p className="eyebrow">Account Access</p>
-        <h1>Welcome to SmartML</h1>
-        <p className="lead">
-          Sign in to access your personal AutoML workspace or create a new
-          account to get started with automated machine learning.
-        </p>
-      </header>
-
-      <div className="auth-container">
-        <div className="auth-tabs">
-          <button
-            type="button"
-            className={`auth-tab ${activeTab === "signin" ? "active" : ""}`}
-            onClick={() => setActiveTab("signin")}
-          >
-            <i className="fas fa-key"></i> Sign In
-          </button>
-          <button
-            type="button"
-            className={`auth-tab ${activeTab === "signup" ? "active" : ""}`}
-            onClick={() => setActiveTab("signup")}
-          >
-            <i className="fas fa-user-plus"></i> Create Account
-          </button>
-        </div>
-
-        {activeTab === "signin" && (
-          <form onSubmit={handleLogin} className="auth-form">
-            {status && (
-              <div className={`alert ${status.type}`}>
-                <i
-                  className={`fas fa-${
-                    status.type === "success"
-                      ? "check-circle"
-                      : "exclamation-triangle"
-                  }`}
-                ></i>
-                <span>{status.message}</span>
+      <div className="auth-split">
+        {/* Left: brand panel */}
+        <motion.div
+          className="auth-brand-panel"
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <h2>Build AI Models Without Writing Code</h2>
+          <p>
+            SmartML automates the entire machine learning pipeline — from data
+            preprocessing to model deployment — so you can focus on insights.
+          </p>
+          <div className="auth-features">
+            {authFeatures.map((f) => (
+              <div key={f.icon} className="auth-feature-item">
+                <i className={`fas ${f.icon}`} />
+                <span>{f.text}</span>
               </div>
-            )}
-            <label>
-              Email Address
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={loginForm.email}
-                onChange={(e) => updateLogin("email", e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                placeholder="Enter your password"
-                value={loginForm.password}
-                onChange={(e) => updateLogin("password", e.target.value)}
-                required
-              />
-            </label>
-            <button className="btn primary full" disabled={loading}>
-              {loading ? (
-                <>
-                  <i className="fas fa-spinner fa-spin"></i> Signing In...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-sign-in-alt"></i> Sign In
-                </>
-              )}
-            </button>
-          </form>
-        )}
+            ))}
+          </div>
+        </motion.div>
 
-        {activeTab === "signup" && (
-          <form onSubmit={handleRegister} className="auth-form">
-            {registerStatus && (
-              <div className={`alert ${registerStatus.type}`}>
-                <i
-                  className={`fas fa-${
-                    registerStatus.type === "success"
-                      ? "check-circle"
-                      : "exclamation-triangle"
-                  }`}
-                ></i>
-                {registerStatus.message}
-              </div>
-            )}
-            <div className="form-grid">
-              <label>
-                First Name
-                <input
-                  type="text"
-                  placeholder="John"
-                  value={registerForm.fname}
-                  onChange={(e) => updateRegister("fname", e.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Last Name
-                <input
-                  type="text"
-                  placeholder="Doe"
-                  value={registerForm.lname}
-                  onChange={(e) => updateRegister("lname", e.target.value)}
-                  required
-                />
-              </label>
+        {/* Right: form panel */}
+        <motion.div
+          className="auth-form-panel"
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <div className="auth-container">
+            <div className="auth-tabs">
+              <button
+                type="button"
+                className={`auth-tab ${activeTab === "signin" ? "active" : ""}`}
+                onClick={() => setActiveTab("signin")}
+              >
+                <i className="fas fa-key" /> Sign In
+              </button>
+              <button
+                type="button"
+                className={`auth-tab ${activeTab === "signup" ? "active" : ""}`}
+                onClick={() => setActiveTab("signup")}
+              >
+                <i className="fas fa-user-plus" /> Create Account
+              </button>
             </div>
-            <label>
-              Username
-              <input
-                type="text"
-                placeholder="johndoe"
-                value={registerForm.username}
-                onChange={(e) => updateRegister("username", e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Email Address
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={registerForm.email}
-                onChange={(e) => updateRegister("email", e.target.value)}
-                required
-              />
-            </label>
-            <div className="form-grid">
-              <label>
-                Password
-                <input
-                  type="password"
-                  placeholder="Create password"
-                  value={registerForm.password}
-                  onChange={(e) => updateRegister("password", e.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Confirm Password
-                <input
-                  type="password"
-                  placeholder="Confirm password"
-                  value={registerForm.cpassword}
-                  onChange={(e) => updateRegister("cpassword", e.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <button className="btn primary full" disabled={registerLoading}>
-              {registerLoading ? (
-                <>
-                  <i className="fas fa-spinner fa-spin"></i> Creating Account...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-rocket"></i> Create Free Account
-                </>
-              )}
-            </button>
-          </form>
-        )}
-      </div>
 
-      <div
-        className="card"
-        style={{
-          textAlign: "center",
-          padding: "2rem",
-          background:
-            "linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(34, 197, 94, 0.08))",
-          border: "1px solid rgba(14, 165, 233, 0.2)",
-        }}
-      >
-        <h3 style={{ marginBottom: "0.75rem" }}>
-          <i className="fas fa-bullseye"></i> Why SmartML?
-        </h3>
-        <p style={{ color: "var(--gray-400)" }}>
-          Join hundreds of users building AI models without code. Our platform
-          automates the entire ML pipeline, from data preprocessing to model
-          deployment.
-        </p>
+            <AnimatePresence mode="wait">
+              {activeTab === "signin" && (
+                <motion.form
+                  key="signin"
+                  onSubmit={handleLogin}
+                  className="auth-form"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  {status && (
+                    <div className={`alert ${status.type}`}>
+                      <i
+                        className={`fas fa-${
+                          status.type === "success"
+                            ? "check-circle"
+                            : "triangle-exclamation"
+                        }`}
+                      />
+                      <span>{status.message}</span>
+                    </div>
+                  )}
+                  <label>
+                    Email Address
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={loginForm.email}
+                      onChange={(e) => updateLogin("email", e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Password
+                    <input
+                      type="password"
+                      placeholder="Enter your password"
+                      value={loginForm.password}
+                      onChange={(e) => updateLogin("password", e.target.value)}
+                      required
+                    />
+                  </label>
+                  <button className="btn primary full" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin" /> Signing In…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-arrow-right-to-bracket" /> Sign In
+                      </>
+                    )}
+                  </button>
+                </motion.form>
+              )}
+
+              {activeTab === "signup" && (
+                <motion.form
+                  key="signup"
+                  onSubmit={handleRegister}
+                  className="auth-form"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  {registerStatus && (
+                    <div className={`alert ${registerStatus.type}`}>
+                      <i
+                        className={`fas fa-${
+                          registerStatus.type === "success"
+                            ? "check-circle"
+                            : "triangle-exclamation"
+                        }`}
+                      />
+                      <span>{registerStatus.message}</span>
+                    </div>
+                  )}
+                  <div className="form-grid">
+                    <label>
+                      First Name
+                      <input
+                        type="text"
+                        placeholder="John"
+                        value={registerForm.fname}
+                        onChange={(e) =>
+                          updateRegister("fname", e.target.value)
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Last Name
+                      <input
+                        type="text"
+                        placeholder="Doe"
+                        value={registerForm.lname}
+                        onChange={(e) =>
+                          updateRegister("lname", e.target.value)
+                        }
+                        required
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Username
+                    <input
+                      type="text"
+                      placeholder="johndoe"
+                      value={registerForm.username}
+                      onChange={(e) =>
+                        updateRegister("username", e.target.value)
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Email Address
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={registerForm.email}
+                      onChange={(e) =>
+                        updateRegister("email", e.target.value)
+                      }
+                      required
+                    />
+                  </label>
+                  <div className="form-grid">
+                    <label>
+                      Password
+                      <input
+                        type="password"
+                        placeholder="Create password"
+                        value={registerForm.password}
+                        onChange={(e) =>
+                          updateRegister("password", e.target.value)
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Confirm Password
+                      <input
+                        type="password"
+                        placeholder="Confirm password"
+                        value={registerForm.cpassword}
+                        onChange={(e) =>
+                          updateRegister("cpassword", e.target.value)
+                        }
+                        required
+                      />
+                    </label>
+                  </div>
+                  <button
+                    className="btn primary full"
+                    disabled={registerLoading}
+                  >
+                    {registerLoading ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin" /> Creating
+                        Account…
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-rocket" /> Create Free Account
+                      </>
+                    )}
+                  </button>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

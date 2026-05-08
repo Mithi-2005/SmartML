@@ -43,6 +43,36 @@ app.add_middleware(
 )
 
 
+def _normalize_artifact_name(name: str) -> str:
+    stem = Path(name).stem
+    parts = stem.split("_", 1)
+    if len(parts) == 2 and len(parts[0]) == 32:
+        stem = parts[1]
+    return stem.replace("_", " ").replace("-", " ").strip().lower()
+
+
+def _load_metadata_map(base: Path, task: str):
+    task_dir = base / task
+    metadata_map = {}
+
+    if not task_dir.exists() or not task_dir.is_dir():
+        return metadata_map
+
+    for meta_file in task_dir.glob("*.meta.json"):
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            normalized_name = _normalize_artifact_name(meta_file.name.replace(".meta.json", ""))
+            metadata_map[normalized_name] = meta
+        except Exception as meta_error:
+            logging.warning(f"[BUNDLES] Failed to index metadata {meta_file}: {meta_error}")
+
+    return metadata_map
+
+
+def _load_model_metadata_map(models_base: Path, task: str):
+    return _load_metadata_map(models_base, task)
+
+
 
 @app.get("/")
 def root():
@@ -294,23 +324,36 @@ def download_model(file_path: str = Query(...)):
 @app.get("/users/get_bundles")
 def get_bundles(user=Depends(verify_token)):
     templates_base = Path(USERS_FOLDER) / user["username"] / "templates"
+    models_base = Path(USERS_FOLDER) / user["username"] / "models"
     response = {"classification": [], "regression": []}
 
     for task in response.keys():
         folder = templates_base / task
         if not folder.exists():
             continue
+        metadata_map = _load_model_metadata_map(models_base, task)
+        metadata_map.update(_load_metadata_map(templates_base, task))
 
         for zip_file in folder.glob("*.zip"):
             rel_path = zip_file.relative_to(Path(USERS_FOLDER))
             stats = zip_file.stat()
+            meta = metadata_map.get(_normalize_artifact_name(zip_file.stem), {})
+
             response[task].append(
                 {
                     "name": zip_file.stem,
+                    "display_name": _normalize_artifact_name(zip_file.stem).title(),
                     "path": str(rel_path),
                     "size_bytes": stats.st_size,
                     "modified_ts": stats.st_mtime,
                     "download_url": f"/users/download_bundle?file_path={rel_path}",
+                    "model_name": meta.get("model_name"),
+                    "metric_name": meta.get("metric_name"),
+                    "metric_value": meta.get("metric_value"),
+                    "explanations": meta.get("explanations", []),
+                    "model_reason": meta.get("model_reason"),
+                    "human_metric": meta.get("human_metric"),
+                    "generated_at": meta.get("generated_at"),
                 }
             )
 
@@ -415,6 +458,9 @@ def delete_bundle(file_path: str = Query(...), user=Depends(verify_token)):
         raise HTTPException(404, "Bundle not found")
 
     abs_path.unlink()
+    meta_path = abs_path.with_suffix(".meta.json")
+    if meta_path.exists():
+        meta_path.unlink()
     logging.info(f"[DELETE] Bundle deleted: {file_path}")
     return {"msg": "Bundle deleted"}
 

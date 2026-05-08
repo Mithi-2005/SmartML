@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   previewColumns,
   uploadDataset,
@@ -15,6 +16,13 @@ const initialPayload = {
   task_type: "classification",
   target_col: "",
   tuning: "false",
+};
+
+const fadeUp = {
+  initial: { opacity: 0, y: 24 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: "-50px" },
+  transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
 };
 
 const Workspace = () => {
@@ -64,32 +72,22 @@ const Workspace = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Restore active runs on mount
+  /* Restore active runs */
   useEffect(() => {
     if (!token) return;
-
     const restoreActiveRuns = async () => {
       try {
-        // Fetch active runs from backend
         const response = await fetchActiveTrainingRuns(token);
         const backendRuns = response?.active_runs || [];
-
-        // Also check localStorage for any runs
         const storedRun = localStorage.getItem("smartml_active_run");
 
         if (backendRuns.length > 0) {
-          // Use the first active run from backend
           const run = backendRuns[0];
-          setActiveRun({
-            datasetId: run.dataset_id,
-            name: run.name,
-          });
+          setActiveRun({ datasetId: run.dataset_id, name: run.name });
         } else if (storedRun) {
-          // Fallback to localStorage if backend has no active runs
           try {
-            const parsed = JSON.parse(storedRun);
-            setActiveRun(parsed);
-          } catch (e) {
+            setActiveRun(JSON.parse(storedRun));
+          } catch {
             localStorage.removeItem("smartml_active_run");
           }
         }
@@ -97,16 +95,13 @@ const Workspace = () => {
         console.error("Failed to restore active runs:", error);
       }
     };
-
     restoreActiveRuns();
   }, [token]);
 
-  // Auto-dismiss success alerts after 5 seconds
+  /* Auto dismiss success alerts */
   useEffect(() => {
     if (status?.type === "success") {
-      const timer = setTimeout(() => {
-        setStatus(null);
-      }, 5000);
+      const timer = setTimeout(() => setStatus(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [status]);
@@ -117,10 +112,7 @@ const Workspace = () => {
     try {
       const response = await previewColumns(token, file);
       setColumns(response);
-      setForm((prev) => ({
-        ...prev,
-        target_col: response?.[0] ?? "",
-      }));
+      setForm((prev) => ({ ...prev, target_col: response?.[0] ?? "" }));
     } catch (error) {
       setColumns([]);
       setForm((prev) => ({ ...prev, target_col: "" }));
@@ -135,46 +127,31 @@ const Workspace = () => {
     setDatasetFile(file || null);
     setColumns([]);
     setForm((prev) => ({ ...prev, target_col: "" }));
-    if (file) {
-      await hydrateColumns(file);
-    }
+    if (file) await hydrateColumns(file);
   };
 
   const handleUpload = async (event) => {
     event.preventDefault();
     if (!datasetFile) {
-      setStatus({
-        type: "error",
-        message: "Attach a dataset before submitting.",
-      });
+      setStatus({ type: "error", message: "Attach a dataset before submitting." });
       return;
     }
     setSubmitting(true);
     setStatus(null);
     try {
-      const response = await uploadDataset(token, {
-        ...form,
-        file: datasetFile,
-      });
-
-      // Set activeRun immediately to start polling
+      const response = await uploadDataset(token, { ...form, file: datasetFile });
       if (response?.status?.dataset_id) {
         const newRun = {
           datasetId: response.status.dataset_id,
           name: response.dataset?.original_name ?? "dataset",
         };
         setActiveRun(newRun);
-        // Persist to localStorage
         localStorage.setItem("smartml_active_run", JSON.stringify(newRun));
         setStatusFeed([]);
         setStatusError(null);
-        setSubmitting(false); // Reset button immediately
+        setSubmitting(false);
       }
-
-      setStatus({
-        type: "success",
-        message: "Dataset uploaded successfully. Training started.",
-      });
+      setStatus({ type: "success", message: "Dataset uploaded successfully. Training started." });
       setDatasetFile(null);
       setColumns([]);
       setForm(initialPayload);
@@ -196,10 +173,10 @@ const Workspace = () => {
     }
   };
 
+  /* Polling for training status */
   useEffect(() => {
     if (!token || !activeRun?.datasetId) return;
     let cancelled = false;
-
     const statusPollRef = { current: null };
 
     const poll = async () => {
@@ -209,22 +186,16 @@ const Workspace = () => {
           setStatusFeed(res?.history ?? []);
           setCurrentStatus(res?.current ?? null);
           setStatusError(null);
-          if (
-            res?.current?.state === "completed" ||
-            res?.current?.state === "error"
-          ) {
+          if (res?.current?.state === "completed" || res?.current?.state === "error") {
             setActiveRun((prev) =>
               prev ? { ...prev, terminalState: res.current.state } : prev
             );
-            // Clean up localStorage when training completes
             localStorage.removeItem("smartml_active_run");
             return true;
           }
         }
       } catch (error) {
-        if (!cancelled) {
-          setStatusError(error.message);
-        }
+        if (!cancelled) setStatusError(error.message);
       }
       return false;
     };
@@ -234,52 +205,35 @@ const Workspace = () => {
       if (done) return;
       const interval = setInterval(async () => {
         const finished = await poll();
-        if (finished) {
-          clearInterval(interval);
-        }
+        if (finished) clearInterval(interval);
       }, 4000);
       statusPollRef.current = interval;
     };
 
     kickoff();
-
     return () => {
       cancelled = true;
-      if (statusPollRef.current) {
-        clearInterval(statusPollRef.current);
-      }
+      if (statusPollRef.current) clearInterval(statusPollRef.current);
     };
   }, [token, activeRun?.datasetId]);
 
-  // Track elapsed time in current stage
+  /* Elapsed time */
   useEffect(() => {
     if (!currentStatus?.timestamp) {
       setTimeElapsed(0);
       return;
     }
-
-    // Don't update timer if in terminal state
-    if (
-      currentStatus.state === "completed" ||
-      currentStatus.state === "error"
-    ) {
-      const start = new Date(currentStatus.timestamp);
-      const now = new Date();
-      const diff = Math.floor((now - start) / 1000);
+    if (currentStatus.state === "completed" || currentStatus.state === "error") {
+      const diff = Math.floor((new Date() - new Date(currentStatus.timestamp)) / 1000);
       setTimeElapsed(diff);
       return;
     }
-
     const updateElapsed = () => {
-      const start = new Date(currentStatus.timestamp);
-      const now = new Date();
-      const diff = Math.floor((now - start) / 1000);
+      const diff = Math.floor((new Date() - new Date(currentStatus.timestamp)) / 1000);
       setTimeElapsed(diff);
     };
-
     updateElapsed();
     const interval = setInterval(updateElapsed, 1000);
-
     return () => clearInterval(interval);
   }, [currentStatus?.timestamp, currentStatus?.state]);
 
@@ -296,23 +250,21 @@ const Workspace = () => {
     [statusFeed]
   );
 
+  /* ---- Unauthenticated ---- */
   if (!token) {
     return (
       <section className="page workspace">
-        <header>
+        <motion.header {...fadeUp}>
           <p className="eyebrow">Your Workspace</p>
           <h1>Ready to Build Your First Model?</h1>
           <p className="lead">
-            Sign in to unlock the full power of automated machine learning.
-            Upload datasets, train models, and download production-ready AI in
-            minutes.
+            Sign in to unlock automated machine learning. Upload datasets, train
+            models, and download production-ready AI in minutes.
           </p>
-        </header>
-        <div className="card muted">
-          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔐</div>
-          <h3 style={{ marginBottom: "1rem", color: "var(--gray-300)" }}>
-            Authentication Required
-          </h3>
+        </motion.header>
+        <motion.div className="card" style={{ textAlign: "center", padding: "3rem 2rem" }} {...fadeUp}>
+          <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🔐</div>
+          <h3 style={{ marginBottom: "0.75rem" }}>Authentication Required</h3>
           <p style={{ marginBottom: "1.5rem" }}>
             Please sign in to access your personal workspace and start building
             models.
@@ -320,68 +272,68 @@ const Workspace = () => {
           <NavLink className="btn primary" to="/auth">
             Sign In to Continue
           </NavLink>
-        </div>
+        </motion.div>
       </section>
     );
   }
+
+  /* ---- Authenticated ---- */
   return (
     <section className="page workspace">
-      <header>
+      <motion.header {...fadeUp}>
         <p className="eyebrow">Your Workspace</p>
-        <h1>Build & Train Your Models</h1>
+        <h1>Build &amp; Train Your Models</h1>
         <p className="lead">
-          Welcome back, {profile?.fname ?? "there"}! 👋 Upload your dataset and
+          Welcome back, {profile?.fname ?? "there"}! Upload your dataset and
           watch as our AI automatically processes, trains, and delivers a
           production-ready model.
         </p>
-      </header>
+      </motion.header>
 
       {status && (
         <div className={`alert ${status.type}`}>
-          {status.type === "success" && "✓ "}
-          {status.type === "error" && "⚠ "}
+          <i
+            className={`fas fa-${
+              status.type === "success" ? "check-circle" : "triangle-exclamation"
+            }`}
+          />
           <span>{status.message}</span>
         </div>
       )}
 
+      {/* Training status */}
       {activeRun && (
-        <div className="training-status-container">
+        <motion.div className="training-status-container" {...fadeUp}>
           <div className="training-status-header">
             <div className="status-info">
               <h3>
-                <i className="fas fa-robot"></i> Training: {activeRun.name}
+                <i className="fas fa-robot" /> Training: {activeRun.name}
               </h3>
               <div className="status-badges">
                 {activeRun.terminalState ? (
                   <span
                     className={`badge ${
-                      activeRun.terminalState === "completed"
-                        ? "success"
-                        : "error"
+                      activeRun.terminalState === "completed" ? "success" : "error"
                     }`}
                   >
                     <i
                       className={`fas fa-${
-                        activeRun.terminalState === "completed"
-                          ? "check"
-                          : "times"
+                        activeRun.terminalState === "completed" ? "check" : "times"
                       }`}
-                    ></i>
-                    {activeRun.terminalState === "completed"
-                      ? "Completed"
-                      : "Failed"}
+                    />
+                    {activeRun.terminalState === "completed" ? "Completed" : "Failed"}
                   </span>
                 ) : (
                   currentStatus && (
                     <span className="badge running">
-                      <i className="fas fa-spinner fa-spin"></i>
+                      <i className="fas fa-spinner fa-spin" />
                       {currentStatus.phase}
                     </span>
                   )
                 )}
                 {currentStatus && !activeRun.terminalState && (
                   <span className="badge info">
-                    <i className="far fa-clock"></i>
+                    <i className="far fa-clock" />
                     {formatElapsedTime(timeElapsed)}
                   </span>
                 )}
@@ -390,7 +342,7 @@ const Workspace = () => {
             <div className="status-actions">
               {activeRun.terminalState === "completed" && (
                 <NavLink to="/models" className="btn primary btn-sm">
-                  <i className="fas fa-eye"></i> View Model
+                  <i className="fas fa-eye" /> View Model
                 </NavLink>
               )}
               <button
@@ -398,9 +350,7 @@ const Workspace = () => {
                 className="btn ghost btn-sm"
                 onClick={() => setShowTracking(!showTracking)}
               >
-                <i
-                  className={`fas fa-chevron-${showTracking ? "up" : "down"}`}
-                ></i>
+                <i className={`fas fa-chevron-${showTracking ? "up" : "down"}`} />
                 {showTracking ? "Hide" : "Show"} Tracking
               </button>
             </div>
@@ -408,7 +358,7 @@ const Workspace = () => {
 
           {statusError && (
             <p className="muted" style={{ padding: "1rem", margin: 0 }}>
-              <i className="fas fa-exclamation-triangle"></i> Status temporarily
+              <i className="fas fa-triangle-exclamation" /> Status temporarily
               unavailable: {statusError}
             </p>
           )}
@@ -418,34 +368,29 @@ const Workspace = () => {
               {currentStatus && (
                 <div className="current-stage-detail">
                   <p className="current-message">
-                    <i className="fas fa-info-circle"></i>
+                    <i className="fas fa-info-circle" />
                     {currentStatus.message}
                   </p>
                 </div>
               )}
-
               {formattedStatus.length ? (
                 <div className="tracking-timeline">
                   <h4 className="timeline-heading">
-                    <i className="fas fa-list-check"></i> Progress Timeline
+                    <i className="fas fa-list-check" /> Progress Timeline
                   </h4>
                   <div className="timeline-wrapper">
                     {formattedStatus.map((event, index) => {
                       const isActive =
                         index === 0 && currentStatus?.phase === event.phase;
                       const isCompleted =
-                        event.state === "completed" ||
-                        (!isActive && index !== 0);
+                        event.state === "completed" || (!isActive && index !== 0);
                       const isError = event.state === "error";
-
                       return (
                         <div
                           key={event.id}
-                          className={`timeline-item ${
-                            isActive ? "active" : ""
-                          } ${isCompleted ? "completed" : ""} ${
-                            isError ? "error" : ""
-                          }`}
+                          className={`timeline-item ${isActive ? "active" : ""} ${
+                            isCompleted ? "completed" : ""
+                          } ${isError ? "error" : ""}`}
                         >
                           <div className="timeline-marker">
                             <i
@@ -456,16 +401,12 @@ const Workspace = () => {
                                   ? "check"
                                   : "circle"
                               }`}
-                            ></i>
+                            />
                           </div>
                           <div className="timeline-content">
                             <div className="timeline-header">
-                              <span className="timeline-phase">
-                                {event.phase}
-                              </span>
-                              <span className="timeline-time">
-                                {event.time}
-                              </span>
+                              <span className="timeline-phase">{event.phase}</span>
+                              <span className="timeline-time">{event.time}</span>
                             </div>
                             <p className="timeline-message">{event.message}</p>
                           </div>
@@ -475,38 +416,39 @@ const Workspace = () => {
                   </div>
                 </div>
               ) : !currentStatus ? (
-                <p
-                  className="muted"
-                  style={{ padding: "1rem", textAlign: "center" }}
-                >
-                  <i className="fas fa-hourglass-start"></i> Waiting for
-                  training to begin...
+                <p className="muted" style={{ padding: "1rem", textAlign: "center" }}>
+                  <i className="fas fa-hourglass-start" /> Waiting for training to
+                  begin…
                 </p>
               ) : null}
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
-      <form onSubmit={handleUpload} className="card form">
+      {/* Upload form */}
+      <motion.form onSubmit={handleUpload} className="card form-card" {...fadeUp}>
         <div className="form-heading">
           <h3>
-            <i className="fas fa-cloud-upload-alt"></i> Upload Your Dataset
+            <i className="fas fa-cloud-arrow-up" /> Upload Your Dataset
           </h3>
           <p>
             Start by uploading a CSV file. We'll analyze it, train the optimal
             model, and have it ready for download in minutes.
           </p>
         </div>
+
         <label className="file-input">
           <span>
-            <i className="fas fa-file-csv"></i> Choose CSV File
+            <i className="fas fa-file-csv" />{" "}
+            {datasetFile ? datasetFile.name : "Choose CSV File"}
           </span>
           <input type="file" accept=".csv" onChange={handleFileChange} />
         </label>
+
         {columnLoading && (
           <span className="badge">
-            <i className="fas fa-sync fa-spin"></i> Analyzing columns...
+            <i className="fas fa-spinner fa-spin" /> Analyzing columns…
           </span>
         )}
 
@@ -517,9 +459,7 @@ const Workspace = () => {
               value={form.task_type}
               onChange={(e) => updateForm("task_type", e.target.value)}
             >
-              <option value="classification">
-                Classification (Categories)
-              </option>
+              <option value="classification">Classification (Categories)</option>
               <option value="regression">Regression (Numbers)</option>
             </select>
           </label>
@@ -533,9 +473,9 @@ const Workspace = () => {
               <option value="">
                 {columns.length ? "Choose target column" : "Upload file first"}
               </option>
-              {columns.map((column) => (
-                <option key={column} value={column}>
-                  {column}
+              {columns.map((col) => (
+                <option key={col} value={col}>
+                  {col}
                 </option>
               ))}
             </select>
@@ -560,97 +500,88 @@ const Workspace = () => {
           >
             {submitting ? (
               <>
-                <i className="fas fa-spinner fa-spin"></i> Uploading...
+                <i className="fas fa-spinner fa-spin" /> Uploading…
               </>
             ) : (
               <>
-                <i className="fas fa-rocket"></i> Start Training
+                <i className="fas fa-rocket" /> Start Training
               </>
             )}
           </button>
         </div>
-      </form>
+      </motion.form>
 
-      <section className="catalogue">
-        <header>
+      {/* Dataset catalogue */}
+      <motion.section className="catalogue" {...fadeUp}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
           <h2>
-            <i className="fas fa-database"></i> Your Datasets
+            <i className="fas fa-database" style={{ color: "var(--amber-400)", marginRight: "0.5rem" }} />
+            Your Datasets
           </h2>
           {loadingCatalogue && (
             <span className="badge">
-              <i className="fas fa-sync fa-spin"></i> Refreshing...
+              <i className="fas fa-spinner fa-spin" /> Refreshing…
             </span>
           )}
-        </header>
-        <div className="grid two">
+        </div>
+
+        <div className="grid-2">
           {["classification", "regression"].map((type) => (
             <div key={type} className="card">
-              <h3 style={{ textTransform: "capitalize", marginBottom: "1rem" }}>
+              <h3 style={{ textTransform: "capitalize", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <i
                   className={`fas fa-${
                     type === "classification" ? "tag" : "chart-line"
                   }`}
-                ></i>{" "}
+                  style={{ color: type === "classification" ? "var(--amber-400)" : "var(--teal-400)" }}
+                />
                 {type}
               </h3>
               {catalogue[type]?.length ? (
-                <ul
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    margin: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                  }}
-                >
-                  {catalogue[type].map((file) => (
-                    <li key={file.download_url} className="catalogue-item">
-                      <span style={{ flex: 1, color: "var(--gray-200)" }}>
-                        {file.name}
-                      </span>
-                      <div className="catalogue-actions">
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          onClick={() =>
-                            downloadDataset(token, file.download_url, file.name)
-                          }
-                          aria-label={`Download ${file.name}`}
-                          title="Download dataset"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
+                <div className="card-scroll">
+                  <ul style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {catalogue[type].map((file) => (
+                      <li key={file.download_url} className="catalogue-item">
+                        <span>{file.name}</span>
+                        <div className="catalogue-actions">
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() =>
+                              downloadDataset(token, file.download_url, file.name)
+                            }
+                            aria-label={`Download ${file.name}`}
+                            title="Download dataset"
                           >
-                            <path
-                              d="M12 4v10m0 0 4-4m-4 4-4-4m-4 9h16"
-                              stroke="currentColor"
-                              strokeWidth="1.6"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M12 4v10m0 0 4-4m-4 4-4-4m-4 9h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn danger"
+                            onClick={() => handleDeleteDataset(file.path || file.download_url)}
+                            aria-label={`Delete ${file.name}`}
+                            title="Delete dataset"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M18 6l-1 14H7L6 6m3 0V4h6v2m-9 0h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : (
-                <p
-                  className="muted"
-                  style={{ padding: "2rem", textAlign: "center" }}
-                >
-                  No {type} datasets yet. Upload your first one above! 👆
+                <p className="muted" style={{ padding: "2rem", textAlign: "center" }}>
+                  No {type} datasets yet. Upload your first one above!
                 </p>
               )}
             </div>
           ))}
         </div>
-      </section>
+      </motion.section>
     </section>
   );
 };
