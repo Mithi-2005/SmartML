@@ -220,7 +220,7 @@ class Preproccessor:
         df = self.df
         df = df.dropna(subset=[self.target_col])
 
-        X = df.drop(columns=[self.target_col], axis=1)
+        X = df.drop(columns=[self.target_col])
         y = df[self.target_col]
         self.X_train, X_temp, self.y_train, y_temp = train_test_split(
             X, y, test_size=0.3, random_state=42
