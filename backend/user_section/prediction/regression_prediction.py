@@ -7,6 +7,10 @@ from joblib import load
 from components.preprocessing import Preproccessor
 from components.meta_features_extraction import meta_features_extract_reg
 
+import logging
+def print(*args, **kwargs):
+    logging.warning(" ".join(str(x) for x in args))
+
 from constants import *
 
 

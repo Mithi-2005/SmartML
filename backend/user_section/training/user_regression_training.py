@@ -21,6 +21,10 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.svm import LinearSVR, SVR
 from sklearn.tree import DecisionTreeRegressor
 
+import logging
+def print(*args, **kwargs):
+    logging.warning(" ".join(str(x) for x in args))
+
 from constants import *
 from user_section.prediction.regression_prediction import MetaRegressionPredictor
 from user_section.training.bundle_exporter import export_user_bundle

@@ -3,6 +3,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import logging
+def print(*args, **kwargs):
+    logging.warning(" ".join(str(x) for x in args))
+
 from constants import *
 import pandas as pd
 import numpy as np

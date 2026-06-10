@@ -14,7 +14,7 @@ if hasattr(sys.stderr, 'reconfigure'):
     except Exception:
         pass
 
-# Redirect all print() calls to logging.info() so they are captured by Azure/Gunicorn log streams
+# Redirect all print() calls to logging.warning() so they are captured by Azure/Gunicorn log streams
 def logging_print(*args, **kwargs):
     message = " ".join(str(arg) for arg in args)
     try:
@@ -22,7 +22,7 @@ def logging_print(*args, **kwargs):
         message = message.encode(encoding, errors='replace').decode(encoding)
     except Exception:
         pass
-    logging.info(message)
+    logging.warning(message)
 
 builtins.print = logging_print
 

@@ -21,6 +21,10 @@ import os,json
 import joblib
 from datetime import datetime
 
+import logging
+def print(*args, **kwargs):
+    logging.warning(" ".join(str(x) for x in args))
+
 NA_STRINGS = ["NA", "N/A", "na", "Na", "NULL", "null", "?"]
 
 
@@ -697,6 +701,7 @@ class Preproccessor:
     def run_preprocessing(self):
 
         print("\n[START] Robust Preprocessing Pipeline...")
+        print(f"[PREPROCESS] Initial DataFrame shape: {self.df.shape}, Columns: {list(self.df.columns)}, Target column: '{self.target_col}'")
 
         # -----------------------------------------
         # 1) Remove duplicates

@@ -6,6 +6,10 @@ from components.meta_features_extraction import meta_features_extract_class
 from components.preprocessing import Preproccessor
 
 import numpy as np
+import logging
+def print(*args, **kwargs):
+    logging.warning(" ".join(str(x) for x in args))
+
 from constants import *
 
 
