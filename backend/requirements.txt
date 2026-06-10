@@ -1,0 +1,14 @@
+scikit-learn
+pandas
+numpy
+ipykernel
+imbalanced-learn
+xgboost
+lime
+fastapi[all]
+pymongo
+bcrypt
+passlib
+python-jose[cryptography]
+cloudpickle
+azure-storage-blob>=12.0.0

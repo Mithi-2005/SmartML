@@ -131,25 +131,33 @@ The bundle is zipped and can be shared or run independently of the main SmartML 
 
 ```text
 SmartML/
-|-- main.py                              # FastAPI entry point and API routes
-|-- config.py                            # JWT-related configuration
-|-- constants/                           # Shared path constants
-|-- components/                          # Core preprocessing and training utilities
-|   |-- preprocessing.py
-|   |-- training.py
-|   `-- meta_features_extraction.py
-|-- user_section/                        # User-facing training, prediction, and status logic
-|   |-- main.py
-|   |-- prediction/
-|   |-- training/
-|   `-- pending_datasets/
-|-- meta_model/                          # Meta-model training assets
-|-- pydantic_models/                     # Request and response schemas
-|-- utils/                               # JWT and DB helpers
-|-- storage/                             # Generated user files
-|-- Frontend/automl/                     # React frontend
-|-- requirements.txt
-`-- README.md
+├── backend/                             # FastAPI backend (deploys to Azure)
+│   ├── main.py                          # FastAPI entry point and API routes
+│   ├── config.py                        # JWT-related configuration
+│   ├── requirements.txt                 # Python dependencies
+│   ├── .env                             # Environment variables (not committed)
+│   ├── .env.example                     # Environment variable template
+│   ├── constants/                       # Shared path constants
+│   ├── components/                      # Core preprocessing and training utilities
+│   │   ├── preprocessing.py
+│   │   ├── training.py
+│   │   └── meta_features_extraction.py
+│   ├── user_section/                    # User-facing training, prediction, and status logic
+│   │   ├── main.py
+│   │   ├── prediction/
+│   │   ├── training/
+│   │   └── pending_datasets/
+│   ├── meta_model/                      # Meta-model training assets
+│   ├── pydantic_models/                 # Request and response schemas
+│   ├── utils/                           # JWT and DB helpers
+│   └── storage/                         # Generated user files (not committed)
+├── frontend/                            # React frontend (deploys to Netlify/Render)
+│   ├── src/
+│   ├── package.json
+│   ├── .env.example                     # Environment variable template
+│   └── ...
+├── .gitignore
+└── README.md
 ```
 
 ## Backend API Overview
@@ -190,47 +198,56 @@ git clone <your-repository-url>
 cd SmartML
 ```
 
-### 2. Create and Activate a Virtual Environment
+### 2. Backend Setup
 
-Windows PowerShell:
-
-```powershell
+```bash
+cd backend
 python -m venv venv
+
+# Windows PowerShell:
 .\venv\Scripts\Activate.ps1
-```
 
-macOS/Linux:
-
-```bash
-python -m venv venv
+# macOS/Linux:
 source venv/bin/activate
-```
 
-### 3. Install Backend Dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment Variables
+### 3. Configure Backend Environment
 
-Create a `.env` file in the project root:
+Copy the template and fill in your values:
 
-```env
-MONGO_DB_URI=mongodb://localhost:27017/
-JWT_SECRET=your_secret_key_here
+```bash
+cp .env.example .env
 ```
 
-Notes:
+Required variables:
 
-- `main.py` expects `MONGO_DB_URI`
-- JWT settings are read from `config.py`, where `JWT_SECRET` can be overridden through the environment
+```env
+MONGO_DB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?appName=Automl
+JWT_SECRET=your_secret_key_here
+CORS_ORIGINS=http://localhost:5173
+```
+
+### 4. Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+Optionally create a `.env` file:
+
+```env
+VITE_API_BASE=http://localhost:8000
+```
 
 ## Running the Application
 
 ### Start the Backend
 
 ```bash
+cd backend
 uvicorn main:app --reload
 ```
 
@@ -241,26 +258,40 @@ The backend will be available at:
 
 ### Start the Frontend
 
-From `Frontend/automl`:
-
 ```bash
-npm install
+cd frontend
 npm run dev
-```
-
-By default, the frontend talks to `http://localhost:8000`.
-
-If needed, create `Frontend/automl/.env` and set:
-
-```env
-VITE_API_BASE=http://localhost:8000
 ```
 
 The frontend dev server typically runs on `http://localhost:5173`.
 
+## Deployment
+
+### Backend (Azure)
+
+Deploy the `backend/` directory as a standalone Python app.
+
+Set these environment variables in Azure App Service:
+
+```env
+MONGO_DB_URI=<your-production-mongodb-uri>
+JWT_SECRET=<strong-random-secret>
+CORS_ORIGINS=https://your-frontend-domain.netlify.app
+```
+
+Startup command: `uvicorn main:app --host 0.0.0.0 --port 8000`
+
+### Frontend (Netlify / Render)
+
+Deploy the `frontend/` directory as a static site.
+
+- **Build command**: `npm run build`
+- **Publish directory**: `dist`
+- **Environment variable**: `VITE_API_BASE=https://your-azure-backend-url.azurewebsites.net`
+
 ## Storage Layout
 
-Generated user assets are stored under `storage/<username>/` and are organized into folders such as:
+Generated user assets are stored under `backend/storage/<username>/` and are organized into folders such as:
 
 - `datasets/`
 - `models/`
@@ -288,13 +319,14 @@ The bundle expects a CSV with the same feature schema used during training. Pred
 
 - The project is focused on tabular CSV datasets
 - Training is asynchronous and tracked through status JSON files
-- The frontend and backend are separate apps that run independently in development
+- The frontend and backend are separate apps that deploy independently
 - Exported bundles are designed for inference, not retraining
 
 ## Future Improvements
 
 Some natural next steps for the project could include:
 
+- Azure Blob Storage for user data persistence
 - Better deployment options beyond local Streamlit bundles
 - Experiment tracking and run history dashboards
 - More detailed model comparison views
@@ -305,3 +337,4 @@ Some natural next steps for the project could include:
 
 Developed by K V Mithilesh  
 GitHub: [@Mithi2005](https://github.com/Mithi2005)
+

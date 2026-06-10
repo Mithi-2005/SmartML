@@ -1,14 +1,19 @@
-*.ipynb
-processed_datasets/
-.vscode/
-*.csv
-datasets/
+# Python
 __pycache__/
-meta_learning/meta_regression/meta_features_regression.csv
-meta_learning/meta_classification/meta_features_classification.csv
-datasets_trainer.py
-download_datasets.py
-*.txt 
+*.pyc
 *.pkl
-storage/
-.env
+
+# Backend
+backend/.env
+backend/storage/
+backend/datasets/**/*.csv
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+
+# Data
+*.ipynb
