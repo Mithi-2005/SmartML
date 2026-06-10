@@ -423,7 +423,7 @@ class Preproccessor:
         self.pre_encoding_columns = list(X_train.columns)
 
         for col in X_train.columns:
-            if X_train[col].dtype == "object" or str(X_train[col].dtype) == "category":
+            if X_train[col].dtype == "object" or str(X_train[col].dtype) == "category" or str(X_train[col].dtype).startswith("string"):
                 unique_vals = X_train[col].nunique()
 
                 # 1️ Low-cardinality → One-Hot Encoding

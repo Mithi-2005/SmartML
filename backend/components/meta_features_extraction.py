@@ -43,7 +43,7 @@ def meta_features_extract_reg(X_train, y_train, best_model = None, raw_df=None):
     n_instances = X_train.shape[0]
     n_features = X_train.shape[1]
 
-    numeric_df = X_train.copy()
+    numeric_df = X_train.select_dtypes(include=[np.number])
     n_num_features = n_features
     if raw_df is not None:
         raw_no_target = raw_df.drop(columns=[raw_df.columns[-1]], errors="ignore")
@@ -153,7 +153,7 @@ def meta_features_extract_class(X_train, y_train, best_model = None, raw_df=None
     n_instances = X_train.shape[0]
     n_features = X_train.shape[1]
 
-    numeric_df = X_train.copy()
+    numeric_df = X_train.select_dtypes(include=[np.number])
     n_num_features = n_features
     if raw_df is not None:
         raw_no_target = raw_df.drop(columns=[raw_df.columns[-1]], errors="ignore")
@@ -268,7 +268,7 @@ def meta_features_extract_clust(X_train, best_model="", raw_df=None):
     if not isinstance(X_train, pd.DataFrame):
         X_train = pd.DataFrame(X_train)
 
-    numeric_df = X_train.copy()
+    numeric_df = X_train.select_dtypes(include=[np.number])
     n_instances = numeric_df.shape[0]
     n_features = numeric_df.shape[1]
     n_num_features = n_features
