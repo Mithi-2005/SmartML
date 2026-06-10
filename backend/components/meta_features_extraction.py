@@ -24,7 +24,7 @@ def mean_feature_entropy_auto(numeric_df):
     for col in numeric_df.columns:
         vals = numeric_df[col].dropna()
         if vals.nunique() > 1:
-            if np.issubdtype(vals.dtype, np.integer) and vals.nunique() < 20:
+            if pd.api.types.is_integer_dtype(vals.dtype) and vals.nunique() < 20:
                 probs = vals.value_counts(normalize=True)
                 entropies.append(entropy(probs))
             else:

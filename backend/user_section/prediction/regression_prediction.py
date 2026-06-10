@@ -76,6 +76,7 @@ class MetaRegressionPredictor:
             print("[ SUCCESS ] Meta Features Extracted Successfully")
         except Exception as e:
             print(f"[ ERROR ] Meta Features Extraction Failed ! {e}")
+            raise e
 
     def predict(self):
         try:
@@ -91,6 +92,7 @@ class MetaRegressionPredictor:
             print(f"Predicted Models: {self.top_models}")
         except Exception as e:
             print(f"[ ERROR ] Model Prediction Failed ! {e}")
+            raise e
 
     def run_pipeline(self,task_type):
         self.preprocess()

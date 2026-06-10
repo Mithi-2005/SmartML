@@ -131,7 +131,7 @@ class Preproccessor:
                 continue
 
             # 3) Integer column with strictly increasing sequence (1,2,3,..)
-            if np.issubdtype(series.dtype, np.integer):
+            if pd.api.types.is_integer_dtype(series.dtype):
                 if series.is_monotonic_increasing:
                     id_like_cols.append(col)
                     continue
