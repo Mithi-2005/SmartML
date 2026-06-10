@@ -30,6 +30,8 @@ class MetaRegressionPredictor:
         )
         self.preprocessor = None
         self.task_type = None
+        print("FIX_VERSION_2")
+
         
     def check_task_type(self, task_type):
         if self.task_type != task_type:
@@ -54,8 +56,12 @@ class MetaRegressionPredictor:
                 self.task_type,
             ) = preprocessor.run_preprocessing()
             print("[ SUCCESS ] Preprocessing complete")
+            
+            if self.X_train is None:
+                raise ValueError("Preprocessing failed: X_train is None. Please verify that the target column exists and contains valid data.")
         except Exception as e:
             print(f"[ ERROR ] Preprocessing Failed ! {e}")
+            raise e
 
     def extract_features(self):
         try:

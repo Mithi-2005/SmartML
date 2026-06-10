@@ -1,4 +1,7 @@
 import sys
+import logging
+import builtins
+
 # Prevent UnicodeEncodeError when printing emojis to non-UTF-8 terminals (e.g. Windows cp1252 or Azure pipelines)
 if hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -10,6 +13,19 @@ if hasattr(sys.stderr, 'reconfigure'):
         sys.stderr.reconfigure(errors='replace')
     except Exception:
         pass
+
+# Redirect all print() calls to logging.info() so they are captured by Azure/Gunicorn log streams
+def logging_print(*args, **kwargs):
+    message = " ".join(str(arg) for arg in args)
+    try:
+        encoding = sys.stdout.encoding or 'utf-8'
+        message = message.encode(encoding, errors='replace').decode(encoding)
+    except Exception:
+        pass
+    logging.info(message)
+
+builtins.print = logging_print
+
 
 ### Paths
 

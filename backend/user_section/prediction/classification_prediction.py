@@ -23,6 +23,7 @@ class MetaClassificationPredictor:
         self.explainer = None
         self.tuning = tuning
         self.task_type = None
+        logging.warning("FIX 2 Working")
 
     def preprocess(self):
         """Preprocess the dataset using the new sklearn-style API."""
@@ -37,6 +38,9 @@ class MetaClassificationPredictor:
             self.y_val,
             self.task_type,
         ) = self.preprocessor.run_preprocessing()
+
+        if self.X_train is None:
+            raise ValueError("Preprocessing failed: X_train is None. Please verify that the target column exists and contains valid data.")
 
         return self
     
