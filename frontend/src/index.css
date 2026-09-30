@@ -684,6 +684,7 @@ select option {
 .file-input span {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.625rem;
   padding: 0.875rem 1.25rem;
   border: 2px dashed var(--slate-300);
@@ -693,6 +694,13 @@ select option {
   transition: border-color var(--duration-fast) var(--ease-out),
               color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
+}
+.file-input span small {
+  flex-basis: 100%;
+  padding-left: 1.5rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
 }
 .file-input:hover span {
   border-color: var(--amber-500);
@@ -1167,6 +1175,60 @@ select option {
   font-size: 0.9375rem;
   color: var(--text-secondary);
 }
+
+.sample-entry { display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+.sample-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--amber-700);
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sample-trigger:hover { color: var(--amber-600); text-decoration: underline; }
+.sample-trigger:focus-visible,
+.sample-choice:focus-visible { outline: 2px solid var(--amber-500); outline-offset: 3px; }
+.sample-chooser {
+  width: 100%;
+  padding: 0.9rem;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  background: var(--slate-50);
+}
+.sample-chooser > p { margin-bottom: 0.7rem; color: var(--text-secondary); font-size: 0.84rem; }
+.sample-choices { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.sample-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-width: 180px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+.sample-choice:hover { border-color: var(--amber-400); background: #fffdf7; }
+.sample-choice span { font-size: 0.84rem; font-weight: 600; }
+.sample-choice small { color: var(--text-secondary); font-size: 0.75rem; }
+.sample-ready {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  color: var(--success);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.sample-ready i { margin-top: 0.12rem; }
 
 .actions {
   display: flex;

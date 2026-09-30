@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -11,6 +11,7 @@ import {
   fetchActiveTrainingRuns,
 } from "../lib/api";
 import { useSession } from "../context/SessionContext";
+import { SAMPLE_DATASETS, SAMPLE_ROW_COUNT } from "../lib/sampleDatasets";
 
 const initialPayload = {
   task_type: "classification",
@@ -28,6 +29,9 @@ const fadeUp = {
 const Workspace = () => {
   const { token, profile } = useSession();
   const [datasetFile, setDatasetFile] = useState(null);
+  const [selectedSample, setSelectedSample] = useState(null);
+  const [showSampleOptions, setShowSampleOptions] = useState(false);
+  const fileInputRef = useRef(null);
   const [form, setForm] = useState(initialPayload);
   const [columns, setColumns] = useState([]);
   const [status, setStatus] = useState(null);
@@ -125,9 +129,29 @@ const Workspace = () => {
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
     setDatasetFile(file || null);
+    setSelectedSample(null);
+    setShowSampleOptions(false);
     setColumns([]);
     setForm((prev) => ({ ...prev, target_col: "" }));
     if (file) await hydrateColumns(file);
+  };
+
+  const handleSampleSelect = (sampleKey) => {
+    const sample = SAMPLE_DATASETS[sampleKey];
+    setDatasetFile(sample.makeFile());
+    setSelectedSample(sampleKey);
+    setShowSampleOptions(false);
+    setColumns(sample.columns);
+    setForm({
+      ...initialPayload,
+      task_type: sample.taskType,
+      target_col: sample.target,
+    });
+    setStatus({
+      type: "success",
+      message: `${sample.title} sample ready — ${SAMPLE_ROW_COUNT.toLocaleString()} rows loaded.`,
+    });
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleUpload = async (event) => {
@@ -153,6 +177,9 @@ const Workspace = () => {
       }
       setStatus({ type: "success", message: "Dataset uploaded successfully. Training started." });
       setDatasetFile(null);
+      setSelectedSample(null);
+      setShowSampleOptions(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setColumns([]);
       setForm(initialPayload);
       loadCatalogue();
@@ -433,8 +460,7 @@ const Workspace = () => {
             <i className="fas fa-cloud-arrow-up" /> Upload Your Dataset
           </h3>
           <p>
-            Start by uploading a CSV file. We'll analyze it, train the optimal
-            model, and have it ready for download in minutes.
+            Choose a CSV file to get started. We’ll analyze it and prepare your model.
           </p>
         </div>
 
@@ -442,9 +468,47 @@ const Workspace = () => {
           <span>
             <i className="fas fa-file-csv" />{" "}
             {datasetFile ? datasetFile.name : "Choose CSV File"}
+            {!datasetFile && <small>CSV format · click to browse</small>}
           </span>
-          <input type="file" accept=".csv" onChange={handleFileChange} />
+          <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleFileChange} />
         </label>
+
+        <div className="sample-entry">
+          <button
+            type="button"
+            className="sample-trigger"
+            aria-expanded={showSampleOptions}
+            onClick={() => setShowSampleOptions((visible) => !visible)}
+          >
+            <i className="fas fa-wand-magic-sparkles" />
+            {showSampleOptions ? "Hide sample datasets" : "Try a sample dataset"}
+          </button>
+          {showSampleOptions && (
+            <div className="sample-chooser">
+              <p>Which type of prediction would you like to try?</p>
+              <div className="sample-choices">
+                {Object.entries(SAMPLE_DATASETS).map(([key, sample]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className="sample-choice"
+                    onClick={() => handleSampleSelect(key)}
+                  >
+                    <span>{key === "classification" ? "Classification" : "Regression"}</span>
+                    <small>{sample.title} · 9,000 rows</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {selectedSample && (
+          <div className="sample-ready" role="status">
+            <i className="fas fa-circle-check" />
+            <span><strong>{SAMPLE_DATASETS[selectedSample].title} sample selected.</strong> Task and target are ready below.</span>
+          </div>
+        )}
 
         {columnLoading && (
           <span className="badge">
